@@ -1,6 +1,9 @@
 use super::cache::{Cachable, Cache};
 use super::parser;
-use super::types::{Chunk, Delta, Features, Fragment, NodeHash, Revision, RevisionLogEntry, RevisionLogHeader, Version};
+use super::types::{
+    Chunk, Delta, Features, Fragment, NodeHash, Revision, RevisionLogEntry, RevisionLogHeader,
+    Version,
+};
 use super::{load_to_mmap, ErrorKind};
 
 use std::cmp;
@@ -300,14 +303,7 @@ impl RevisionLog {
             let chunk = self.get_chunk(idx);
 
             match chunk {
-                Ok(Chunk::Deltas(deltas)) => {
-                    if deltas.fragments.len() > 1000 {
-                        dbg!(&self.path);
-                        dbg!(self.get_entry_by_revision(&idx).unwrap());
-                        dbg!(&deltas.fragments.len());
-                    }
-                    deltas
-                }
+                Ok(Chunk::Deltas(deltas)) => deltas,
                 _ => panic!("Literal text found in delta chain."),
             }
         });

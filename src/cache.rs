@@ -14,7 +14,6 @@ const THRESHOLD: usize = 50000;
 
 impl Cachable<NodeHash, Vec<u8>> for Cache {
     fn new(capacity: usize) -> Self {
-        eprintln!("cache: {}", capacity);
         Self {
             inner: Mutex::new(LruCache::new(capacity)),
         }

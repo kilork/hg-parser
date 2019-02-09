@@ -171,10 +171,6 @@ impl<'a> ChangesetIter<'a> {
         let mut file_revlog = self.files.lock().unwrap().get_mut(file).map(|x| x.clone());
 
         if file_revlog.is_none() {
-            eprintln!(
-                "cache miss file revlog: {}",
-                std::str::from_utf8(file).unwrap()
-            );
             let filerevlog = Arc::new(self.init_file_revlog(file));
             self.files
                 .lock()
@@ -265,14 +261,11 @@ impl<'a> Iterator for ChangesetIter<'a> {
                 let mut files = Vec::with_capacity(manifest.files.len() * 2);
                 let files = if let (Some(p1), Some(p2)) = (changeset_header.p1, changeset_header.p2)
                 {
-                    eprintln!("process merge revision: {:?} {:?}", p1, p2);
                     let mut heads = self.heads.lock().unwrap();
                     if !heads.contains_key(&p1) {
-                        eprintln!("cache miss: {:?}", p1);
                         heads.insert(p1, Arc::new(self.repository.get_manifest(p1, &self.cache)));
                     }
                     if !heads.contains_key(&p2) {
-                        eprintln!("cache miss: {:?}", p2);
                         heads.insert(p2, Arc::new(self.repository.get_manifest(p2, &self.cache)));
                     }
 
@@ -281,11 +274,7 @@ impl<'a> Iterator for ChangesetIter<'a> {
 
                     split_dict(&manifest, &p1, &mut files);
                     split_dict(&manifest, &p2, &mut files);
-                    eprintln!(
-                        "total files len: {} original manifest {}",
-                        files.len(),
-                        manifest.files.len()
-                    );
+
                     files.sort();
                     files.dedup();
 
