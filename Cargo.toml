@@ -26,4 +26,3 @@ rayon = "1.0"
 jemallocator = { version = "0.1.9", optional = true }
 
 lru-cache = "0.1"
-snap = "0.2"
