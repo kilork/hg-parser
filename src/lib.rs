@@ -74,9 +74,9 @@ impl MercurialRepository {
         ChangesetIter {
             repository: self,
             revisions_range: revisions_range.into(),
-            heads: Mutex::new(LruCache::new(16)),
-            files: Mutex::new(LruCache::new(4096 << 1)),
-            cache: Cache::new(1 << 15),
+            heads: Mutex::new(LruCache::new(1 << 4)),
+            files: Mutex::new(LruCache::new(1 << 12)),
+            cache: Cache::new(1 << 13),
         }
     }
 
