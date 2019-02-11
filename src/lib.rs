@@ -247,6 +247,7 @@ impl<'a> Iterator for ChangesetIter<'a> {
                 .repository
                 .manifest
                 .get_entry_by_nodeid(&changeset_header.manifestid)
+                .or_else(|| self.repository.manifest.get_entry_by_revision(&revision))
             {
                 let data = self
                     .repository
