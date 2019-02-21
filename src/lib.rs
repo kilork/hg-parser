@@ -147,45 +147,128 @@ impl MercurialRepository {
             unimplemented!();
         }
     }
-}
 
-impl<'a> IntoIterator for &'a MercurialRepository {
-    type Item = Changeset;
-    type IntoIter = ChangesetIter<'a>;
+    fn changeset(
+        repository: &MercurialRepository,
+        heads: &Mutex<LruCache<Revision, Arc<Manifest>>>,
+        files_cache: &Mutex<LruCache<Vec<u8>, Arc<RevisionLog>>>,
+        cache: &Cache,
+        revision: Revision,
+    ) -> Option<Changeset> {
+        if let Some(entry) = repository.changelog.get_entry_by_revision(&revision) {
+            // we have entry - need to build revision and put it to heads
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.range_iter(Revision::from(0).range_to(self.last_rev()))
+            let path = &repository.root_path;
+            let data = repository
+                .changelog
+                .get_revision_from_entry(entry, cache)
+                .expect(&format!(
+                    "cannot get revision {:?} from changelog of {:?}",
+                    revision, path
+                ));
+            let changeset_header = ChangesetHeader::from_entry_bytes(entry, &data).unwrap();
+            if let Some(manifest_entry) = repository
+                .manifest
+                .get_entry_by_nodeid(&changeset_header.manifestid)
+                .or_else(|| repository.manifest.get_entry_by_revision(&revision))
+            {
+                let data = repository
+                    .manifest
+                    .get_revision_from_entry(manifest_entry, cache)
+                    .expect(&format!(
+                        "cannot get revision {:?} from manifest of {:?}",
+                        revision, path
+                    ));
+                let manifest = Manifest::from(data);
+
+                let mut files = Vec::with_capacity(manifest.files.len() * 2);
+                let files = if let (Some(p1), Some(p2)) = (changeset_header.p1, changeset_header.p2)
+                {
+                    let mut heads = heads.lock().unwrap();
+                    if !heads.contains_key(&p1) {
+                        heads.insert(p1, Arc::new(repository.get_manifest(p1, cache)));
+                    }
+                    if !heads.contains_key(&p2) {
+                        heads.insert(p2, Arc::new(repository.get_manifest(p2, cache)));
+                    }
+
+                    let p1 = heads.get_mut(&p1).map(|x| x.clone()).unwrap();
+                    let p2 = heads.get_mut(&p2).map(|x| x.clone()).unwrap();
+
+                    split_dict(&manifest, &p1, &mut files);
+                    split_dict(&manifest, &p2, &mut files);
+
+                    files.sort();
+                    files.dedup();
+
+                    &files
+                } else {
+                    &changeset_header.files
+                };
+
+                let files: Vec<_> = files
+                    .par_iter()
+                    .map(|file| {
+                        let file = file.as_slice();
+                        let manifest_entry = manifest.files.get(file);
+                        let data = manifest_entry.and_then(|manifest_entry| {
+                            Self::file_revlog(repository, files_cache, file)
+                                .get_revision_by_nodeid(&manifest_entry.id, cache)
+                        });
+
+                        ChangesetFile {
+                            path: file.into(),
+                            data,
+                            manifest_entry: manifest_entry.cloned(),
+                        }
+                    })
+                    .collect();
+                heads
+                    .lock()
+                    .as_mut()
+                    .map(|x| {
+                        changeset_header.p1.map(|h1| x.remove(&h1));
+                        changeset_header.p2.map(|h2| x.remove(&h2));
+                        x.insert(revision, Arc::new(manifest));
+                    })
+                    .unwrap();
+                let changeset = Changeset {
+                    revision,
+                    header: changeset_header,
+                    files,
+                };
+                Some(changeset)
+            } else {
+                None
+            }
+        } else {
+            // revision does not exist - stop iterator
+            None
+        }
     }
-}
 
-pub struct ChangesetIter<'a> {
-    repository: &'a MercurialRepository,
-    revisions_range: RevisionRange,
-    heads: Mutex<LruCache<Revision, Arc<Manifest>>>,
-    files: Mutex<LruCache<Vec<u8>, Arc<RevisionLog>>>,
-    cache: Cache,
-}
-
-impl<'a> ChangesetIter<'a> {
-    fn file_revlog(&self, file: &[u8]) -> Arc<RevisionLog> {
-        let mut file_revlog = self.files.lock().unwrap().get_mut(file).map(|x| x.clone());
+    fn file_revlog(
+        repository: &MercurialRepository,
+        files: &Mutex<LruCache<Vec<u8>, Arc<RevisionLog>>>,
+        file: &[u8],
+    ) -> Arc<RevisionLog> {
+        let mut file_revlog = files.lock().unwrap().get_mut(file).map(|x| x.clone());
 
         if file_revlog.is_none() {
-            let filerevlog = Arc::new(self.init_file_revlog(file));
-            self.files
+            let filerevlog = Arc::new(Self::init_file_revlog(repository, file));
+            files
                 .lock()
                 .unwrap()
                 .insert(file.into(), filerevlog.clone());
-            assert!(self.files.lock().unwrap().get_mut(file).is_some());
+            assert!(files.lock().unwrap().get_mut(file).is_some());
             file_revlog = Some(filerevlog);
         }
 
         file_revlog.unwrap()
     }
 
-    fn init_file_revlog(&self, file: &[u8]) -> RevisionLog {
-        let root_path = &self.repository.root_path;
-        let repository = self.repository;
+    fn init_file_revlog(repository: &MercurialRepository, file: &[u8]) -> RevisionLog {
+        let root_path = &repository.root_path;
         let path = MPath::from(file);
         let path = MPath::new("data")
             .unwrap()
@@ -221,108 +304,38 @@ impl<'a> ChangesetIter<'a> {
     }
 }
 
+impl<'a> IntoIterator for &'a MercurialRepository {
+    type Item = Changeset;
+    type IntoIter = ChangesetIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.range_iter(Revision::from(0).range_to(self.last_rev()))
+    }
+}
+
+pub struct ChangesetIter<'a> {
+    repository: &'a MercurialRepository,
+    revisions_range: RevisionRange,
+    heads: Mutex<LruCache<Revision, Arc<Manifest>>>,
+    files: Mutex<LruCache<Vec<u8>, Arc<RevisionLog>>>,
+    cache: Cache,
+}
+
+impl<'a> ChangesetIter<'a> {}
+
 impl<'a> Iterator for ChangesetIter<'a> {
     type Item = Changeset;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let revision = self.revisions_range.next();
-        if revision.is_none() {
-            return None;
-        }
-        let revision = revision.unwrap();
-        if let Some(entry) = self.repository.changelog.get_entry_by_revision(&revision) {
-            // we have entry - need to build revision and put it to heads
-
-            let path = &self.repository.root_path;
-            let data = self
-                .repository
-                .changelog
-                .get_revision_from_entry(entry, &self.cache)
-                .expect(&format!(
-                    "cannot get revision {:?} from changelog of {:?}",
-                    revision, path
-                ));
-            let changeset_header = ChangesetHeader::from_entry_bytes(entry, &data).unwrap();
-            if let Some(manifest_entry) = self
-                .repository
-                .manifest
-                .get_entry_by_nodeid(&changeset_header.manifestid)
-                .or_else(|| self.repository.manifest.get_entry_by_revision(&revision))
-            {
-                let data = self
-                    .repository
-                    .manifest
-                    .get_revision_from_entry(manifest_entry, &self.cache)
-                    .expect(&format!(
-                        "cannot get revision {:?} from manifest of {:?}",
-                        revision, path
-                    ));
-                let manifest = Manifest::from(data);
-
-                let mut files = Vec::with_capacity(manifest.files.len() * 2);
-                let files = if let (Some(p1), Some(p2)) = (changeset_header.p1, changeset_header.p2)
-                {
-                    let mut heads = self.heads.lock().unwrap();
-                    if !heads.contains_key(&p1) {
-                        heads.insert(p1, Arc::new(self.repository.get_manifest(p1, &self.cache)));
-                    }
-                    if !heads.contains_key(&p2) {
-                        heads.insert(p2, Arc::new(self.repository.get_manifest(p2, &self.cache)));
-                    }
-
-                    let p1 = heads.get_mut(&p1).map(|x| x.clone()).unwrap();
-                    let p2 = heads.get_mut(&p2).map(|x| x.clone()).unwrap();
-
-                    split_dict(&manifest, &p1, &mut files);
-                    split_dict(&manifest, &p2, &mut files);
-
-                    files.sort();
-                    files.dedup();
-
-                    &files
-                } else {
-                    &changeset_header.files
-                };
-
-                let files: Vec<_> = files
-                    .par_iter()
-                    .map(|file| {
-                        let file = file.as_slice();
-                        let manifest_entry = manifest.files.get(file);
-                        let data = manifest_entry.and_then(|manifest_entry| {
-                            self.file_revlog(file)
-                                .get_revision_by_nodeid(&manifest_entry.id, &self.cache)
-                        });
-
-                        ChangesetFile {
-                            path: file.into(),
-                            data,
-                            manifest_entry: manifest_entry.cloned(),
-                        }
-                    })
-                    .collect();
-                self.heads
-                    .lock()
-                    .as_mut()
-                    .map(|x| {
-                        changeset_header.p1.map(|h1| x.remove(&h1));
-                        changeset_header.p2.map(|h2| x.remove(&h2));
-                        x.insert(revision, Arc::new(manifest));
-                    })
-                    .unwrap();
-                let changeset = Changeset {
-                    revision,
-                    header: changeset_header,
-                    files,
-                };
-                Some(changeset)
-            } else {
-                None
-            }
-        } else {
-            // revision does not exist - stop iterator
-            None
-        }
+        self.revisions_range.next().and_then(|revision| {
+            MercurialRepository::changeset(
+                self.repository,
+                &self.heads,
+                &self.files,
+                &self.cache,
+                revision,
+            )
+        })
     }
 }
 
@@ -340,7 +353,6 @@ fn load_to_mmap<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, ErrorKind> {
     let mut result = vec![];
     f.read_to_end(&mut result).unwrap();
     Ok(result)
-    // Ok(unsafe { MmapOptions::new().map(&f)? })
 }
 
 pub fn file_content(data: &[u8]) -> &[u8] {
