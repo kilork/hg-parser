@@ -2,8 +2,10 @@
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
+use std::ops::Deref;
 use itertools::Itertools;
 use lru_cache::LruCache;
+use ordered_parallel_iterator::OrderedParallelIterator;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -39,6 +41,66 @@ pub struct MercurialRepository {
     changelog: RevisionLog,
     manifest: RevisionLog,
     requires: HashSet<RepositoryRequire>,
+}
+
+pub struct CachedMercurialRepository {
+    repository: MercurialRepository,
+    heads: Mutex<LruCache<Revision, Arc<Manifest>>>,
+    files: Mutex<LruCache<Vec<u8>, Arc<RevisionLog>>>,
+    cache: Cache,
+}
+
+impl From<MercurialRepository> for CachedMercurialRepository {
+    fn from(repository: MercurialRepository) -> Self {
+        Self {
+            repository,
+            heads: Mutex::new(LruCache::new(1 << 4)),
+            files: Mutex::new(LruCache::new(1 << 12)),
+            cache: Cache::new(1 << 13),
+        }
+    }
+}
+
+pub struct SharedMercurialRepository {
+    inner: Arc<CachedMercurialRepository>,
+}
+
+impl SharedMercurialRepository {
+    pub fn new(repository: MercurialRepository) -> Self {
+        Self {
+            inner: Arc::new(repository.into())
+        }
+    }
+}
+
+impl Deref for SharedMercurialRepository {
+    type Target = MercurialRepository;
+
+    #[inline]
+    fn deref(&self) -> &MercurialRepository {
+        &self.inner.repository
+    }
+}
+
+impl SharedMercurialRepository {
+    pub fn par_range_iter(&self, revision_range: RevisionRange) -> OrderedParallelIterator<Changeset> {
+        let cached_repository = self.inner.clone();
+        let xform_ctor = move || {
+            let cached_repository = cached_repository.clone();
+            move |x: Revision| {
+                let repository = &cached_repository.repository;
+                repository
+                    .changeset(
+                        &cached_repository.heads,
+                        &cached_repository.files,
+                        &cached_repository.cache,
+                        x,
+                    )
+                    .unwrap()
+            }
+        };
+        OrderedParallelIterator::new(move || revision_range, xform_ctor)
+    }
 }
 
 impl MercurialRepository {
@@ -149,17 +211,17 @@ impl MercurialRepository {
     }
 
     fn changeset(
-        repository: &MercurialRepository,
+        &self,
         heads: &Mutex<LruCache<Revision, Arc<Manifest>>>,
         files_cache: &Mutex<LruCache<Vec<u8>, Arc<RevisionLog>>>,
         cache: &Cache,
         revision: Revision,
     ) -> Option<Changeset> {
-        if let Some(entry) = repository.changelog.get_entry_by_revision(&revision) {
+        if let Some(entry) = self.changelog.get_entry_by_revision(&revision) {
             // we have entry - need to build revision and put it to heads
 
-            let path = &repository.root_path;
-            let data = repository
+            let path = &self.root_path;
+            let data = self
                 .changelog
                 .get_revision_from_entry(entry, cache)
                 .expect(&format!(
@@ -167,12 +229,12 @@ impl MercurialRepository {
                     revision, path
                 ));
             let changeset_header = ChangesetHeader::from_entry_bytes(entry, &data).unwrap();
-            if let Some(manifest_entry) = repository
+            if let Some(manifest_entry) = self
                 .manifest
                 .get_entry_by_nodeid(&changeset_header.manifestid)
-                .or_else(|| repository.manifest.get_entry_by_revision(&revision))
+                .or_else(|| self.manifest.get_entry_by_revision(&revision))
             {
-                let data = repository
+                let data = self
                     .manifest
                     .get_revision_from_entry(manifest_entry, cache)
                     .expect(&format!(
@@ -186,10 +248,10 @@ impl MercurialRepository {
                 {
                     let mut heads = heads.lock().unwrap();
                     if !heads.contains_key(&p1) {
-                        heads.insert(p1, Arc::new(repository.get_manifest(p1, cache)));
+                        heads.insert(p1, Arc::new(self.get_manifest(p1, cache)));
                     }
                     if !heads.contains_key(&p2) {
-                        heads.insert(p2, Arc::new(repository.get_manifest(p2, cache)));
+                        heads.insert(p2, Arc::new(self.get_manifest(p2, cache)));
                     }
 
                     let p1 = heads.get_mut(&p1).map(|x| x.clone()).unwrap();
@@ -212,7 +274,7 @@ impl MercurialRepository {
                         let file = file.as_slice();
                         let manifest_entry = manifest.files.get(file);
                         let data = manifest_entry.and_then(|manifest_entry| {
-                            Self::file_revlog(repository, files_cache, file)
+                            Self::file_revlog(self, files_cache, file)
                                 .get_revision_by_nodeid(&manifest_entry.id, cache)
                         });
 
@@ -328,13 +390,8 @@ impl<'a> Iterator for ChangesetIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.revisions_range.next().and_then(|revision| {
-            MercurialRepository::changeset(
-                self.repository,
-                &self.heads,
-                &self.files,
-                &self.cache,
-                revision,
-            )
+            self.repository
+                .changeset(&self.heads, &self.files, &self.cache, revision)
         })
     }
 }
