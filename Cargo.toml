@@ -22,8 +22,8 @@ lazy_static = "1.2"
 rust-crypto = "0.2.36"
 itertools = "0.8"
 rayon = "1.0"
-# ordered-parallel-iterator = { git =  "https://github.com/kilork/ordered-parallel-iterator" }
-ordered-parallel-iterator = { path =  "../ordered-parallel-iterator" }
+ordered-parallel-iterator = { git =  "https://github.com/kilork/ordered-parallel-iterator" }
+# ordered-parallel-iterator = { path =  "../ordered-parallel-iterator" }
 
 jemallocator = { version = "0.1.9", optional = true }
 
