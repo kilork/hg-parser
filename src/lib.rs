@@ -114,8 +114,6 @@ impl MercurialRepository {
         let changelog = RevisionLog::init(store.join("00changelog.i"), None)?;
         let manifest = RevisionLog::init(store.join("00manifest.i"), None)?;
 
-        //let changelog_data = store.join("00changelog.d");
-        //let manifet = store
         Ok(MercurialRepository {
             root_path: root_path.as_ref().into(),
             changelog,
