@@ -2,7 +2,6 @@
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
-use std::ops::Deref;
 use itertools::Itertools;
 use lru_cache::LruCache;
 use ordered_parallel_iterator::OrderedParallelIterator;
@@ -12,6 +11,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -68,7 +68,7 @@ pub struct SharedMercurialRepository {
 impl SharedMercurialRepository {
     pub fn new(repository: MercurialRepository) -> Self {
         Self {
-            inner: Arc::new(repository.into())
+            inner: Arc::new(repository.into()),
         }
     }
 }
@@ -83,7 +83,10 @@ impl Deref for SharedMercurialRepository {
 }
 
 impl SharedMercurialRepository {
-    pub fn par_range_iter(&self, revision_range: RevisionRange) -> OrderedParallelIterator<Changeset> {
+    pub fn par_range_iter(
+        &self,
+        revision_range: RevisionRange,
+    ) -> OrderedParallelIterator<Changeset> {
         let cached_repository = self.inner.clone();
         let xform_ctor = move || {
             let cached_repository = cached_repository.clone();

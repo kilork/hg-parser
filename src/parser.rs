@@ -1,7 +1,7 @@
 use flate2::read::ZlibDecoder;
 use nom::{
-    alt, alt_complete, apply, be_u16, be_u32, complete, do_parse, length_bytes, many0, map, named,
-    peek, return_error, tag, take, Context, Err, ErrorKind, IResult, Needed,
+    alt, alt_complete, apply, be_u16, be_u32, call, complete, do_parse, length_bytes, many0, map,
+    named, peek, return_error, tag, take, Context, Err, ErrorKind, IResult, Needed,
 };
 use std::fmt::Debug;
 use std::io::Read;
