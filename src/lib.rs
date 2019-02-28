@@ -2,7 +2,6 @@
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
-use itertools::Itertools;
 use lru_cache::LruCache;
 use ordered_parallel_iterator::OrderedParallelIterator;
 use rayon::prelude::*;
@@ -429,11 +428,10 @@ fn extract_meta(file: &[u8]) -> (&[u8], usize) {
         (&[], 0)
     } else {
         let metasz = &file[META_SZ..]
-            .iter()
+            .windows(2)
             .enumerate()
-            .tuple_windows()
-            .find(|&((_, a), (_, b))| *a == META_MARKER[0] && *b == META_MARKER[1])
-            .map(|((idx, _), _)| idx + META_SZ * 2)
+            .find(|&(_, sample)| sample == META_MARKER)
+            .map(|(idx, _)| idx + META_SZ * 2)
             .unwrap_or(META_SZ); // XXX malformed if None - unterminated metadata
 
         let metasz = *metasz;

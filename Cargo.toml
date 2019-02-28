@@ -20,7 +20,6 @@ byteorder = "1.3"
 chrono = "0.4"
 lazy_static = "1.2"
 rust-crypto = "0.2.36"
-itertools = "0.8"
 rayon = "1.0"
 ordered-parallel-iterator = { git =  "https://github.com/kilork/ordered-parallel-iterator" }
 # ordered-parallel-iterator = { path =  "../ordered-parallel-iterator" }
