@@ -35,6 +35,7 @@ pub use manifest::{FileType, ManifestEntry, ManifestEntryDetails};
 pub use types::{Revision, RevisionRange};
 
 #[derive(Debug)]
+/// Mercurial repository. Top-level structure for access to change sets and tags.
 pub struct MercurialRepository {
     root_path: PathBuf,
     changelog: RevisionLog,
@@ -42,6 +43,7 @@ pub struct MercurialRepository {
     requires: HashSet<RepositoryRequire>,
 }
 
+/// Cached version of `MercurialRepository`.
 pub struct CachedMercurialRepository {
     repository: MercurialRepository,
     heads: Mutex<LruCache<Revision, Arc<Manifest>>>,
@@ -60,6 +62,7 @@ impl From<MercurialRepository> for CachedMercurialRepository {
     }
 }
 
+/// Shares instance of `CachedMercurialRepository` between multiple readers.
 pub struct SharedMercurialRepository {
     inner: Arc<CachedMercurialRepository>,
 }
@@ -396,7 +399,7 @@ impl<'a> Iterator for ChangesetIter<'a> {
     }
 }
 
-fn load_to_mmap<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, ErrorKind> {
+fn load_to_vec<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, ErrorKind> {
     let mut f = match File::open(path.as_ref()) {
         Ok(f) => f,
         Err(err) => {
@@ -412,6 +415,18 @@ fn load_to_mmap<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, ErrorKind> {
     Ok(result)
 }
 
+/// Extract blob data (raw file content) from internal Mercurial representation.
+/// This representation is by default returned by [ChangesetIter](struct.ChangesetIter.html) iterator.
+/// ```
+/// # use hg_parser::file_content;
+/// let blob_with_meta = b"\x01\nmeta information\x01\nraw body";
+///
+/// let blob = file_content(blob_with_meta);
+///
+/// assert_eq!(blob, b"raw body");
+///
+/// assert_eq!(b"without meta", file_content(b"without meta"));
+/// ```
 pub fn file_content(data: &[u8]) -> &[u8] {
     let (_, off) = extract_meta(data);
     &data[off..]

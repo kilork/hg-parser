@@ -4,7 +4,7 @@ use super::types::{
     Chunk, Delta, Features, Fragment, NodeHash, Revision, RevisionLogEntry, RevisionLogHeader,
     Version,
 };
-use super::{load_to_mmap, ErrorKind};
+use super::{load_to_vec, ErrorKind};
 
 use std::cmp;
 use std::collections::{BTreeMap, HashMap};
@@ -12,7 +12,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 #[derive(Debug)]
-pub struct RevisionLog {
+/// Mercurial revision log information.
+pub(crate) struct RevisionLog {
     path: PathBuf,
     header: RevisionLogHeader,
     index: Vec<u8>,
@@ -31,7 +32,7 @@ struct Info {
 
 impl RevisionLog {
     pub(crate) fn init<P: AsRef<Path>>(path: P, data_path: Option<P>) -> Result<Self, ErrorKind> {
-        let index = load_to_mmap(path.as_ref())?;
+        let index = load_to_vec(path.as_ref())?;
 
         let (_, header) = parser::header(&index)?;
 
@@ -39,7 +40,7 @@ impl RevisionLog {
             let datapath: PathBuf = data_path
                 .map(|x| x.as_ref().into())
                 .unwrap_or_else(|| path.as_ref().with_extension("d"));
-            Some(load_to_mmap(datapath)?)
+            Some(load_to_vec(datapath)?)
         } else {
             None
         };

@@ -1,15 +1,20 @@
 #[derive(Debug)]
 pub enum ErrorKind {
+    /// Parser failed.
     Parser,
+    /// Cannot convert from Utf-8.
     FromUtf8(std::str::Utf8Error),
     /// IO error.
     IO(std::io::Error),
+    /// Invalid path.
     InvalidPath(String),
     /// RevisionLog load failure.
     RevisionLogFailure(String),
+    /// Cannot convert date/time.
     InvalidDateTime(String),
     /// Requirement in ``.hg/requires`` is not supported.
     UnknownRequirement(String),
+    /// Manifest issue.
     Manifest(String),
 }
 

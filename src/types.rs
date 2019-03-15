@@ -11,11 +11,6 @@ use std::ops::Range;
 use std::ops::Sub;
 use std::str::FromStr;
 
-pub trait RevisionCache {
-    fn empty(&self) -> &[u8];
-    fn store(&self, data: Vec<u8>) -> &[u8];
-}
-
 /// Repository requires flags.
 /// Repositories contain a file (``.hg/requires``) containing a list of
 /// features/capabilities that are *required* for clients to interface
@@ -73,7 +68,7 @@ impl FromStr for RepositoryRequire {
     }
 }
 
-/// Index into a `RevLog`
+/// Mercurial revision's index.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Revision(pub u32);
 
@@ -118,8 +113,8 @@ impl From<Revision> for usize {
     }
 }
 
-// Convert a `Revision` into an open-ended iterator of Revision values
-// starting at Revision's value. ie, Revision(2).into_iter() => Revision(2), Revision(3), ...
+/// Convert a `Revision` into an iterator of `Revision` values
+/// starting at `Revision`'s value. ie, `Revision`(2).into_iter() => `Revision`(2), `Revision`(3), ...
 impl<'a> IntoIterator for &'a Revision {
     type Item = Revision;
     type IntoIter = RevisionRange;
@@ -129,7 +124,7 @@ impl<'a> IntoIterator for &'a Revision {
     }
 }
 
-/// An open-ended or bounded iterator over a range of Revision
+/// An iterator over a range of `Revision`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RevisionRange(u32, u32);
 
@@ -165,7 +160,7 @@ impl From<Range<usize>> for RevisionRange {
     }
 }
 
-/// Revlog version number
+/// `Revlog` version number
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Version {
     Revlog0 = 0,
@@ -188,7 +183,7 @@ bitflags! {
     }
 }
 
-/// Revlog header
+/// `Revlog` header
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct RevisionLogHeader {
     pub version: Version,
