@@ -7,7 +7,7 @@ Mercurial repository changelog parser. It allows to get any revision
 with creation date, user, parents, branch and files.
 """
 edition = "2018"
-license = "GPLv2+"
+license = "GPL-2.0-or-later"
 readme = "README.md"
 homepage = "https://github.com/kilork/hg-parser"
 repository = "https://github.com/kilork/hg-parser"
