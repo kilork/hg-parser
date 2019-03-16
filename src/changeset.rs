@@ -6,14 +6,23 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::{fmt, str};
 
+/// Changeset's header.
 pub struct ChangesetHeader {
+    /// Parent 1.
     pub p1: Option<Revision>,
+    /// Parent 2.
     pub p2: Option<Revision>,
+    /// Manifest id hash.
     pub manifestid: NodeHash,
+    /// User.
     pub user: Vec<u8>,
+    /// Time.
     pub time: DateTime,
+    /// Extra properties (like b"branch" shows current branch name, b"closed" equal to b"1" means branch is closed).
     pub extra: HashMap<Vec<u8>, Vec<u8>>,
+    /// Files paths.
     pub files: Vec<Vec<u8>>,
+    /// Comment to revision.
     pub comment: Vec<u8>,
 }
 
@@ -44,8 +53,12 @@ impl Debug for ChangesetHeader {
         )
     }
 }
+
 impl ChangesetHeader {
-    pub fn from_entry_bytes(entry: &RevisionLogEntry, data: &[u8]) -> Result<Self, ErrorKind> {
+    pub(crate) fn from_entry_bytes(
+        entry: &RevisionLogEntry,
+        data: &[u8],
+    ) -> Result<Self, ErrorKind> {
         let mut lines = data.split(|&x| x == b'\n');
         if let (Some(manifestid), Some(user), Some(timeextra)) = (
             lines
@@ -150,16 +163,26 @@ fn unescape<'a, S: IntoIterator<Item = &'a u8>>(s: S) -> Vec<u8> {
     ret
 }
 
+/// `Changeset` info about revision, contains revision number, header and files
+/// with bodies and metadata.
 #[derive(Debug)]
 pub struct Changeset {
+    /// Revision.
     pub revision: Revision,
+    /// Header with parents, manifest, user, date, extra, files, and comment attributes.
     pub header: ChangesetHeader,
+    /// File list for revision.
     pub files: Vec<ChangesetFile>,
 }
 
+/// Changeset's file. Contains path info, internal blob from Mercurial
+/// (use [file_content](fn.file_content.html) for actual file data) and meta information.
 #[derive(Debug)]
 pub struct ChangesetFile {
+    /// Path.
     pub path: Vec<u8>,
+    /// Data of file, `None` - file was deleted, otherwise it was added or modified.
     pub data: Option<Arc<Vec<u8>>>,
+    /// Meta information, `None` - file was deleted, otherwise it was added or modified.
     pub manifest_entry: Option<ManifestEntry>,
 }

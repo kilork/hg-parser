@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::{fmt, str};
 
-pub struct Manifest {
+pub(crate) struct Manifest {
     pub files: BTreeMap<Vec<u8>, ManifestEntry>,
 }
 
@@ -23,6 +23,7 @@ impl Debug for Manifest {
     }
 }
 
+/// Manifest entry for file. Contains revision hash and file metainformation.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ManifestEntry {
     pub id: NodeHash,
@@ -67,6 +68,7 @@ impl<'a> From<Arc<Vec<u8>>> for Manifest {
     }
 }
 
+/// File meta information.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum ManifestEntryDetails {
     File(FileType),
@@ -82,6 +84,7 @@ impl fmt::Display for ManifestEntryDetails {
     }
 }
 
+/// File type. Can be regular, executable, or symlink.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum FileType {
     Regular,

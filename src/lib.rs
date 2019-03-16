@@ -552,6 +552,7 @@ impl<'a> IntoIterator for &'a MercurialRepository {
     }
 }
 
+/// Iterator over `MercurialRepository` revisions.
 pub struct ChangesetIter<'a> {
     repository: &'a MercurialRepository,
     revisions_range: RevisionRange,
