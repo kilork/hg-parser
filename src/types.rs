@@ -167,16 +167,16 @@ pub enum Version {
     RevlogNG = 1,
 }
 
-/// `Revlog` features
 bitflags! {
+    /// `Revlog` features
     pub struct Features: u16 {
         const INLINE        = 1 << 0;
         const GENERAL_DELTA = 1 << 1;
     }
 }
 
-/// Per-revision flags
 bitflags! {
+    /// Per-revision flags
     pub struct IdxFlags: u16 {
         const EXTSTORED     = 1 << 13;
         const CENSORED      = 1 << 15;

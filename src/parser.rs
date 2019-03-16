@@ -52,7 +52,7 @@ where
     detach_result(parse(&data[..]), remains)
 }
 
-/// Parse the revlog header
+// Parse the revlog header
 named!(pub header<RevisionLogHeader>,
     do_parse!(
         features: return_error!(ErrorKind::Custom(badness::IO), be_u16) >>
@@ -80,7 +80,7 @@ pub const fn indexng_size() -> usize {
     6 + 2 + 4 + 4 + 4 + 4 + 4 + 4 + 32
 }
 
-/// Parse an "NG" revlog entry
+// Parse an "NG" revlog entry
 named!(pub indexng<RevisionLogEntry>,
     do_parse!(
         offset: return_error!(ErrorKind::Custom(badness::IO), be_u48) >>    // XXX if first, then only 2 bytes, implied 0 in top 4
@@ -112,7 +112,7 @@ pub const fn index0_size() -> usize {
     4 + 4 + 4 + 4 + 4 + 4 + 4 + 20
 }
 
-/// Parse an original revlog entry
+// Parse an original revlog entry
 named!(pub index0<RevisionLogEntry>,
     do_parse!(
         _header: header >>
@@ -139,7 +139,7 @@ named!(pub index0<RevisionLogEntry>,
     )
 );
 
-/// Parse a single Delta
+// Parse a single Delta
 named!(pub delta<Fragment>,
     do_parse!(
         start: be_u32 >>
@@ -155,7 +155,7 @@ named!(pub delta<Fragment>,
     )
 );
 
-/// Parse 0 or more deltas
+// Parse 0 or more deltas
 named!(deltas<Vec<Fragment>>, many0!(complete!(delta)));
 
 // A chunk of data data that contains some Deltas; the caller defines the framing bytes
@@ -192,7 +192,7 @@ pub fn detach_result<'inp, 'out, O: 'out, E: 'out>(
 
 named!(remains_owned<Vec<u8>>, map!(remains, |x: &[u8]| x.into()));
 
-/// Parse some literal data, possibly compressed
+// Parse some literal data, possibly compressed
 named!(pub literal<Vec<u8>>,
     alt!(
         do_parse!(peek!(tag!(b"\0")) >> d: remains >> (d.into())) |

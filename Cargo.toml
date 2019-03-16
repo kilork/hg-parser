@@ -2,6 +2,10 @@
 name = "hg-parser"
 version = "0.1.0"
 authors = ["Alexander Korolev <kilork@yandex.ru>"]
+description = """
+Mercurial repository changelog parser. It allows to get any revision
+with creation date, user, parents, branch and files.
+"""
 edition = "2018"
 license = "GPLv2+"
 readme = "README.md"
