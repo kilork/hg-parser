@@ -3,7 +3,7 @@ use bitflags::bitflags;
 use chrono::{
     DateTime as ChronoDateTime, FixedOffset, Local, LocalResult, NaiveDateTime, TimeZone,
 };
-use crypto::{digest::Digest, sha1};
+use sha1::{Digest, Sha1};
 use std::fmt::Debug;
 use std::fmt::{self, Display};
 use std::ops::Add;
@@ -207,16 +207,9 @@ impl NodeHash {
     }
 
     pub fn from_slice(data: &[u8]) -> Self {
-        let mut sha1 = sha1::Sha1::new();
-        sha1.input(data);
-
-        let mut ret = NULL;
-        sha1.result(&mut ret.0[..]);
-        ret
+        (&Sha1::digest(data)[..]).into()
     }
 }
-
-pub const NULL: NodeHash = NodeHash([0; 20]);
 
 impl AsRef<[u8]> for NodeHash {
     fn as_ref(&self) -> &[u8] {
