@@ -21,12 +21,12 @@ fn be_u48(i: &[u8]) -> IResult<&[u8], u64> {
     if i.len() < 6 {
         Err(Err::Incomplete(Needed::Size(6 - i.len())))
     } else {
-        let res = ((i[0] as u64) << 40)
-            + ((i[1] as u64) << 32)
-            + ((i[2] as u64) << 24)
-            + ((i[3] as u64) << 16)
-            + ((i[4] as u64) << 8)
-            + ((i[5] as u64) << 0);
+        let res = (u64::from(i[0]) << 40)
+            + (u64::from(i[1]) << 32)
+            + (u64::from(i[2]) << 24)
+            + (u64::from(i[3]) << 16)
+            + (u64::from(i[4]) << 8)
+            + u64::from(i[5]);
         Ok((&i[6..], res))
     }
 }
@@ -125,7 +125,7 @@ named!(pub index0<RevisionLogEntry>,
         hash: take!(20) >>
         ({
             RevisionLogEntry {
-                offset: offset as u64,
+                offset: u64::from(offset),
                 flags: IdxFlags::empty(),
                 compressed_len: compressed_length,
                 len: None,

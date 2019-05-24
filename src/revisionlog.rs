@@ -79,8 +79,8 @@ impl RevisionLog {
     }
 
     #[inline]
-    pub(crate) fn get_entry_by_revision(&self, revision: &Revision) -> Option<&RevisionLogEntry> {
-        self.info.entries.get(revision)
+    pub(crate) fn get_entry_by_revision(&self, revision: Revision) -> Option<&RevisionLogEntry> {
+        self.info.entries.get(&revision)
     }
 
     #[inline]
@@ -135,7 +135,7 @@ impl RevisionLog {
     /// mechanism of applying the deltas depends on whether the `RevLog` has the `GENERAL_DELTA`
     /// flag set or not.
     fn get_chunk(&self, idx: Revision) -> Result<Chunk, ErrorKind> {
-        let entry = self.get_entry_by_revision(&idx).unwrap();
+        let entry = self.get_entry_by_revision(idx).unwrap();
 
         let (chunkdata, start): (&[u8], usize) = if self.is_inline {
             let off = self.offset_for_idx(idx).expect("not cached?");
@@ -153,44 +153,39 @@ impl RevisionLog {
         // If the entry has baserev that is equal to it's idx, then the chunk is literal data.
         // Otherwise its 0 or more deltas against the baserev. If its general delta, then the
         // baserev itself might also be delta, otherwise its all the deltas from baserev..idx.
-        let result = if Some(idx) == entry.baserev {
+        if Some(idx) == entry.baserev {
             if chunkdata.is_empty() {
                 Ok(Chunk::Literal(vec![]))
             } else {
                 match parser::literal(chunkdata) {
-                    Ok((rest, _)) if rest.len() != 0 => {
+                    Ok((rest, _)) if !rest.is_empty() => {
                         Err(ErrorKind::RevisionLogFailure(format!(
                             "Failed to unpack literal: {} remains, {:?}",
                             rest.len(),
                             &rest[..16]
-                        ))
-                        .into())
+                        )))
                     }
                     Ok((_, literal)) => Ok(Chunk::Literal(literal)),
                     err => Err(ErrorKind::RevisionLogFailure(format!(
                         "Failed to unpack literal: {:?}",
                         err
-                    ))
-                    .into()),
+                    ))),
                 }
             }
         } else {
             match parser::deltachunk(chunkdata) {
-                Ok((rest, _)) if rest.len() != 0 => Err(ErrorKind::RevisionLogFailure(format!(
+                Ok((rest, _)) if !rest.is_empty() => Err(ErrorKind::RevisionLogFailure(format!(
                     "Failed to unpack details: {} remains, {:?}",
                     rest.len(),
                     &rest[..16]
-                ))
-                .into()),
+                ))),
                 Ok((_, deltas)) => Ok(Chunk::Deltas(deltas)),
                 err => Err(ErrorKind::RevisionLogFailure(format!(
                     "Failed to unpack deltas: {:?}",
                     err
-                ))
-                .into()),
+                ))),
             }
-        };
-        result
+        }
     }
 
     fn offset_for_idx(&self, idx: Revision) -> Option<usize> {
@@ -201,10 +196,10 @@ impl RevisionLog {
         }
     }
 
-    fn construct_simple<'b>(&self, tgtidx: Revision) -> Result<Arc<Vec<u8>>, ErrorKind> {
+    fn construct_simple(&self, tgtidx: Revision) -> Result<Arc<Vec<u8>>, ErrorKind> {
         assert!(!self.is_general_delta());
 
-        let entry = self.get_entry_by_revision(&tgtidx).unwrap();
+        let entry = self.get_entry_by_revision(tgtidx).unwrap();
         // if there's no baserev, then use the target as a baserev (it should be literal)
         let baserev = entry.baserev.map(Into::into).unwrap_or(tgtidx);
 
@@ -255,7 +250,7 @@ impl RevisionLog {
             // 2) Delta against empty string - this is possible only if baserev is None.
             //    In core hg it matches a case where baserev == -1.
             // 3) Delta against non-empty string. Only if baserev is Some(...) and baserev < idx.
-            let entry = self.get_entry_by_revision(&idx).unwrap();
+            let entry = self.get_entry_by_revision(idx).unwrap();
             match entry.baserev {
                 Some(baseidx) if idx == baseidx => {
                     // This is a literal
@@ -265,13 +260,15 @@ impl RevisionLog {
                             break Arc::new(v);
                         }
                         _ => {
-                            Err(ErrorKind::RevisionLogFailure(format!("expected a literal")))?;
+                            Err(ErrorKind::RevisionLogFailure(
+                                "expected a literal".to_string(),
+                            ))?;
                         }
                     }
                 }
                 Some(baseidx) if idx > baseidx => {
                     idx = baseidx;
-                    let base_entry = self.get_entry_by_revision(&baseidx).unwrap();
+                    let base_entry = self.get_entry_by_revision(baseidx).unwrap();
                     if let Some(data) = cache.get(&base_entry.nodeid) {
                         break data;
                     }
@@ -288,16 +285,16 @@ impl RevisionLog {
                         break Arc::new(vec![]);
                     }
                     _ => {
-                        Err(ErrorKind::RevisionLogFailure(format!(
-                            "expected a delta against empty string"
-                        )))?;
+                        Err(ErrorKind::RevisionLogFailure(
+                            "expected a delta against empty string".to_string(),
+                        ))?;
                     }
                 },
             }
         };
 
         if chunks.is_empty() {
-            return Ok(cache.put(self.get_entry_by_revision(&tgtidx).unwrap().nodeid, data));
+            return Ok(cache.put(self.get_entry_by_revision(tgtidx).unwrap().nodeid, data));
         }
 
         let chain = chunks.into_iter().rev().map(|idx| {
@@ -311,7 +308,7 @@ impl RevisionLog {
 
         let data = apply_chain(data.as_ref(), chain)?;
         Ok(cache.put(
-            self.get_entry_by_revision(&tgtidx).unwrap().nodeid,
+            self.get_entry_by_revision(tgtidx).unwrap().nodeid,
             Arc::new(data),
         ))
     }
@@ -380,7 +377,7 @@ pub fn apply_chain<I: IntoIterator<Item = Delta>>(
         let folded_wrapped_delta = mpatch_fold(&wrapped_deltas, 0, wrapped_deltas.len());
 
         // convert into Revlog Delta
-        let folded_delta = folded_wrapped_delta.into_delta(&data)?;
+        let folded_delta = folded_wrapped_delta.delta(&data)?;
 
         // apply folded delta
         res = apply(&res, &folded_delta)?;
@@ -408,7 +405,7 @@ pub fn apply(text: &[u8], delta: &Delta) -> Result<Vec<u8>, ErrorKind> {
                 ))
             })?);
         }
-        if frag.content.len() > 0 {
+        if !frag.content.is_empty() {
             chunks.push(frag.content.as_ref())
         }
         off = frag.end;
@@ -524,7 +521,7 @@ impl FragmentWrapperIterator {
         self.frags.push(frag);
     }
 
-    pub(crate) fn into_delta(&self, data: &[u8]) -> Result<Delta, ErrorKind> {
+    pub(crate) fn delta(&self, data: &[u8]) -> Result<Delta, ErrorKind> {
         let mut frags = Vec::new();
 
         for frag_wrapper in self.frags.as_slice() {
@@ -544,7 +541,7 @@ impl FragmentWrapperIterator {
 
 /// Fold deltas in the range [start, end)
 pub(crate) fn mpatch_fold(
-    deltas: &Vec<FragmentWrapperIterator>,
+    deltas: &[FragmentWrapperIterator],
     start: usize,
     end: usize,
 ) -> FragmentWrapperIterator {

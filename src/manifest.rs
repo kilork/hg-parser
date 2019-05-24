@@ -35,7 +35,7 @@ impl ManifestEntry {
         let (hash, flags) = data.split_at(40);
         let id: NodeHash = str::from_utf8(hash).unwrap().parse().unwrap();
 
-        let details = if flags.len() == 0 {
+        let details = if flags.is_empty() {
             ManifestEntryDetails::File(FileType::Regular)
         } else {
             match flags[0] {

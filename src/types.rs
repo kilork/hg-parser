@@ -74,12 +74,12 @@ pub struct Revision(pub u32);
 
 impl Revision {
     /// Return iterator for a range from index to `lim`.
-    pub fn range_to(&self, lim: Self) -> RevisionRange {
+    pub fn range_to(self, lim: Self) -> RevisionRange {
         RevisionRange(self.0, lim.0)
     }
 
     /// Return an open ended iterator from index.
-    pub fn range(&self) -> RevisionRange {
+    pub fn range(self) -> RevisionRange {
         RevisionRange(self.0, std::u32::MAX)
     }
 }
@@ -170,7 +170,7 @@ pub enum Version {
 bitflags! {
     /// `Revlog` features
     pub struct Features: u16 {
-        const INLINE        = 1 << 0;
+        const INLINE        = 1;
         const GENERAL_DELTA = 1 << 1;
     }
 }
@@ -402,7 +402,7 @@ impl Timestamp {
         Timestamp(ts)
     }
 
-    pub fn timestamp_nanos(&self) -> i64 {
+    pub fn timestamp_nanos(self) -> i64 {
         self.0
     }
 }

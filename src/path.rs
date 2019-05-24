@@ -7,6 +7,7 @@ use std::iter::{once, Once};
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::slice::Iter;
+use std::vec::IntoIter;
 
 use crate::error::ErrorKind;
 use crate::types::*;
@@ -145,11 +146,11 @@ impl MPath {
     pub fn iter_opt(path: Option<&Self>) -> Iter<MPathElement> {
         match path {
             Some(path) => path.into_iter(),
-            None => [].into_iter(),
+            None => [].iter(),
         }
     }
 
-    pub fn into_iter_opt(path: Option<Self>) -> ::std::vec::IntoIter<MPathElement> {
+    pub fn vec_iter_opt(path: Option<Self>) -> IntoIter<MPathElement> {
         match path {
             Some(path) => path.into_iter(),
             None => (vec![]).into_iter(),
@@ -246,7 +247,7 @@ impl MPath {
         }
     }
 
-    pub fn display_opt<'a>(path_opt: Option<&'a MPath>) -> DisplayOpt<'a> {
+    pub fn display_opt(path_opt: Option<&MPath>) -> DisplayOpt<'_> {
         DisplayOpt(path_opt)
     }
 }
@@ -411,7 +412,7 @@ static HEX: &[u8] = b"0123456789abcdef";
 fn hexenc(byte: u8, out: &mut Vec<u8>) {
     out.push(b'~');
     out.push(HEX[((byte >> 4) & 0xf) as usize]);
-    out.push(HEX[((byte >> 0) & 0xf) as usize]);
+    out.push(HEX[(byte & 0xf) as usize]);
 }
 
 // Encode directory names
@@ -440,12 +441,12 @@ fn fnencode<E: AsRef<[u8]>>(elem: E, forfncache: bool) -> Vec<u8> {
         ToUpper,
     }
 
-    fn upper_to_underscore_and_lower(ref mut ret: &mut Vec<u8>, e: u8) -> () {
+    fn upper_to_underscore_and_lower(ret: &mut Vec<u8>, e: u8) {
         ret.push(b'_');
         ret.push(e - b'A' + b'a');
     }
 
-    fn upper_to_upper(ref mut ret: &mut Vec<u8>, e: u8) -> () {
+    fn upper_to_upper(ret: &mut Vec<u8>, e: u8) {
         ret.push(e);
     }
 
@@ -534,7 +535,10 @@ fn auxencode<E: AsRef<[u8]>>(elem: E, dotencode: bool) -> Vec<u8> {
         } else {
             // if base portion of name is a windows reserved name,
             // then hex encode 3rd char
-            let pos = elem.iter().position(|c| *c == b'.').unwrap_or(elem.len());
+            let pos = elem
+                .iter()
+                .position(|c| *c == b'.')
+                .unwrap_or_else(|| elem.len());
             let prefix_len = ::std::cmp::min(3, pos);
             match &elem[..prefix_len] {
                 b"aux" | b"con" | b"prn" | b"nul" if pos == 3 => {
@@ -576,7 +580,7 @@ fn get_extension(basename: &[u8]) -> &[u8] {
     }
 }
 
-fn hashed_file(dirs: &Vec<Vec<u8>>, file: &[u8]) -> NodeHash {
+fn hashed_file(dirs: &[Vec<u8>], file: &[u8]) -> NodeHash {
     let mut elements: Vec<_> = dirs.iter().map(|elem| direncode(&elem)).collect();
     elements.push(Vec::from(file));
 
@@ -751,7 +755,7 @@ mod test {
         let suffix = suffix.map(|suffix| MPath::new(suffix).unwrap());
         let mut elements = vec![];
         let joined = MPath::join_opt(prefix.as_ref(), MPath::iter_opt(suffix.as_ref()));
-        elements.extend(MPath::into_iter_opt(joined));
+        elements.extend(MPath::vec_iter_opt(joined));
         assert_eq!(fncache_fsencode(&elements, false), PathBuf::from(expected));
     }
 

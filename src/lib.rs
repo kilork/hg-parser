@@ -405,18 +405,18 @@ impl MercurialRepository {
     }
 
     fn changeset_header(&self, cache: &Cache, revision: Revision) -> Option<ChangesetHeader> {
-        self.changelog
-            .get_entry_by_revision(&revision)
-            .map(|entry| {
-                let data = self
-                    .changelog
-                    .get_revision_from_entry(entry, cache)
-                    .expect(&format!(
+        self.changelog.get_entry_by_revision(revision).map(|entry| {
+            let data = self
+                .changelog
+                .get_revision_from_entry(entry, cache)
+                .unwrap_or_else(|_| {
+                    panic!(
                         "cannot get revision {:?} from changelog of {:?}",
                         revision, &self.root_path
-                    ));
-                ChangesetHeader::from_entry_bytes(entry, &data).unwrap()
-            })
+                    )
+                });
+            ChangesetHeader::from_entry_bytes(entry, &data).unwrap()
+        })
     }
 
     fn changeset(
@@ -426,30 +426,34 @@ impl MercurialRepository {
         cache: &Cache,
         revision: Revision,
     ) -> Option<Changeset> {
-        if let Some(entry) = self.changelog.get_entry_by_revision(&revision) {
+        if let Some(entry) = self.changelog.get_entry_by_revision(revision) {
             // we have entry - need to build revision and put it to heads
 
             let path = &self.root_path;
             let data = self
                 .changelog
                 .get_revision_from_entry(entry, cache)
-                .expect(&format!(
-                    "cannot get revision {:?} from changelog of {:?}",
-                    revision, path
-                ));
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "cannot get revision {:?} from changelog of {:?}",
+                        revision, path
+                    )
+                });
             let changeset_header = ChangesetHeader::from_entry_bytes(entry, &data).unwrap();
             if let Some(manifest_entry) = self
                 .manifest
                 .get_entry_by_nodeid(&changeset_header.manifestid)
-                .or_else(|| self.manifest.get_entry_by_revision(&revision))
+                .or_else(|| self.manifest.get_entry_by_revision(revision))
             {
                 let data = self
                     .manifest
                     .get_revision_from_entry(manifest_entry, cache)
-                    .expect(&format!(
-                        "cannot get revision {:?} from manifest of {:?}",
-                        revision, path
-                    ));
+                    .unwrap_or_else(|_| {
+                        panic!(
+                            "cannot get revision {:?} from manifest of {:?}",
+                            revision, path
+                        )
+                    });
                 let manifest = Manifest::from(data);
 
                 let mut files = Vec::with_capacity(manifest.files.len() * 2);
@@ -463,8 +467,8 @@ impl MercurialRepository {
                         heads.insert(p2, Arc::new(self.get_manifest(p2, cache)));
                     }
 
-                    let p1 = heads.get_mut(&p1).map(|x| x.clone()).unwrap();
-                    let p2 = heads.get_mut(&p2).map(|x| x.clone()).unwrap();
+                    let p1 = heads.get_mut(&p1).cloned().unwrap();
+                    let p2 = heads.get_mut(&p2).cloned().unwrap();
 
                     split_dict(&manifest, &p1, &mut files);
                     split_dict(&manifest, &p2, &mut files);
@@ -523,7 +527,7 @@ impl MercurialRepository {
         files: &Mutex<LruCache<Vec<u8>, Arc<RevisionLog>>>,
         file: &[u8],
     ) -> Arc<RevisionLog> {
-        let mut file_revlog = files.lock().unwrap().get_mut(file).map(|x| x.clone());
+        let mut file_revlog = files.lock().unwrap().get_mut(file).cloned();
 
         if file_revlog.is_none() {
             let filerevlog = Arc::new(Self::init_file_revlog(repository, file));
@@ -682,13 +686,12 @@ fn extract_meta(file: &[u8]) -> (&[u8], usize) {
 fn split_dict(dleft: &Manifest, dright: &Manifest, f: &mut Vec<Vec<u8>>) {
     for (left, linfo) in &dleft.files {
         let right = dright.files.get(left);
-        if right.is_none() {
-            f.push(left.clone());
-        } else if right.unwrap() != linfo {
+        if right.is_none() || right.unwrap() != linfo {
             f.push(left.clone());
         }
     }
-    for (right, _) in &dright.files {
+
+    for right in dright.files.keys() {
         let left = dleft.files.get(right);
         if left.is_none() {
             f.push(right.clone());

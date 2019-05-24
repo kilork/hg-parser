@@ -45,10 +45,10 @@ impl Debug for ChangesetHeader {
                 ))
                 .collect::<Vec<_>>()
                 .join(","),
-                self.files.iter().map(|key| format!(
-                    "{}",
-                    str::from_utf8(&key).unwrap()
-                )).collect::<Vec<_>>().join("\n"),
+            self.files.iter()
+                .map(|key| str::from_utf8(&key).unwrap().to_string())
+                .collect::<Vec<_>>()
+                .join("\n"),
             str::from_utf8(&self.comment).expect("bad comment utf8"),
         )
     }
@@ -89,8 +89,8 @@ impl ChangesetHeader {
                     files.push(file.into());
                 }
                 Ok(ChangesetHeader {
-                    p1: entry.p1.clone(),
-                    p2: entry.p2.clone(),
+                    p1: entry.p1,
+                    p2: entry.p2,
                     manifestid,
                     user: user.into(),
                     time: DateTime::from_timestamp(time, tz)?,
