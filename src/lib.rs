@@ -307,6 +307,11 @@ impl MercurialRepository {
         self.into_iter()
     }
 
+    /// Changeset header iterator other all revisions in log.
+    pub fn header_iter(&self) -> ChangesetHeaderIter {
+        self.range_header_iter(Revision::from(0).range_to(self.last_rev()))
+    }
+
     /// Changeset iterator other range of revisions in log.
     pub fn range_iter<RR: Into<RevisionRange>>(&self, revisions_range: RR) -> ChangesetIter {
         ChangesetIter {
@@ -314,6 +319,18 @@ impl MercurialRepository {
             revisions_range: revisions_range.into(),
             heads: Mutex::new(LruCache::new(1 << 4)),
             files: Mutex::new(LruCache::new(1 << 12)),
+            cache: Cache::new(1 << 13),
+        }
+    }
+
+    /// Changeset header iterator other range of revisions in log.
+    pub fn range_header_iter<RR: Into<RevisionRange>>(
+        &self,
+        revisions_range: RR,
+    ) -> ChangesetHeaderIter {
+        ChangesetHeaderIter {
+            repository: self,
+            revisions_range: revisions_range.into(),
             cache: Cache::new(1 << 13),
         }
     }
@@ -385,6 +402,21 @@ impl MercurialRepository {
         } else {
             unimplemented!();
         }
+    }
+
+    fn changeset_header(&self, cache: &Cache, revision: Revision) -> Option<ChangesetHeader> {
+        self.changelog
+            .get_entry_by_revision(&revision)
+            .map(|entry| {
+                let data = self
+                    .changelog
+                    .get_revision_from_entry(entry, cache)
+                    .expect(&format!(
+                        "cannot get revision {:?} from changelog of {:?}",
+                        revision, &self.root_path
+                    ));
+                ChangesetHeader::from_entry_bytes(entry, &data).unwrap()
+            })
     }
 
     fn changeset(
@@ -561,8 +593,6 @@ pub struct ChangesetIter<'a> {
     cache: Cache,
 }
 
-impl<'a> ChangesetIter<'a> {}
-
 impl<'a> Iterator for ChangesetIter<'a> {
     type Item = Changeset;
 
@@ -571,6 +601,22 @@ impl<'a> Iterator for ChangesetIter<'a> {
             self.repository
                 .changeset(&self.heads, &self.files, &self.cache, revision)
         })
+    }
+}
+
+pub struct ChangesetHeaderIter<'a> {
+    repository: &'a MercurialRepository,
+    revisions_range: RevisionRange,
+    cache: Cache,
+}
+
+impl<'a> Iterator for ChangesetHeaderIter<'a> {
+    type Item = ChangesetHeader;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.revisions_range
+            .next()
+            .and_then(|revision| self.repository.changeset_header(&self.cache, revision))
     }
 }
 
