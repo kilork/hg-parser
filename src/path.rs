@@ -4,6 +4,7 @@ use std::ffi::OsStr;
 use std::fmt::{self, Display};
 use std::io::{self, Write};
 use std::iter::{once, Once};
+#[cfg(any(unix, target_os = "redox"))]
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::slice::Iter;
@@ -367,7 +368,13 @@ pub fn fncache_fsencode(elements: &[MPathElement], dotencode: bool) -> PathBuf {
     if let Some(basename) = file {
         ret.push(fsencode_filter(basename.as_bytes(), dotencode));
         let os_str: &OsStr = ret.as_ref();
-        if os_str.as_bytes().len() > MAXSTOREPATHLEN {
+
+        #[cfg(any(unix, target_os = "redox"))]
+        let os_str_len = os_str.as_bytes().len();
+        #[cfg(windows)]
+        let os_str_len = os_str.len(); // need to know more about windows path lengths
+
+        if os_str_len > MAXSTOREPATHLEN {
             hashencode(
                 path.map(|elem| elem.to_bytes()).collect(),
                 basename.as_bytes(),
