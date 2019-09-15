@@ -1,6 +1,6 @@
 [package]
 name = "hg-parser"
-version = "0.2.3"
+version = "0.3.0"
 authors = ["Alexander Korolev <kilork@yandex.ru>"]
 description = """
 Mercurial repository changelog parser. It allows to get any revision
@@ -26,6 +26,7 @@ lazy_static = "1.4"
 sha-1 = "0.8"
 rayon = "1.2"
 ordered-parallel-iterator = "0.1"
+failure = "0.1"
 
 jemallocator = { version = "0.3", optional = true }
 
