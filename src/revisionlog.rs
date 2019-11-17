@@ -260,9 +260,9 @@ impl RevisionLog {
                             break Arc::new(v);
                         }
                         _ => {
-                            Err(ErrorKind::RevisionLogFailure(
+                            return Err(ErrorKind::RevisionLogFailure(
                                 "expected a literal".to_string(),
-                            ))?;
+                            ));
                         }
                     }
                 }
@@ -274,10 +274,10 @@ impl RevisionLog {
                     }
                 }
                 Some(baseidx) => {
-                    Err(ErrorKind::RevisionLogFailure(format!(
+                    return Err(ErrorKind::RevisionLogFailure(format!(
                         "baserev {:?} >= idx {:?}",
                         baseidx, idx
-                    )))?;
+                    )));
                 }
                 None => match chunk {
                     // This is a delta against "-1" revision i.e. empty revision
@@ -285,9 +285,9 @@ impl RevisionLog {
                         break Arc::new(vec![]);
                     }
                     _ => {
-                        Err(ErrorKind::RevisionLogFailure(
+                        return Err(ErrorKind::RevisionLogFailure(
                             "expected a delta against empty string".to_string(),
-                        ))?;
+                        ));
                     }
                 },
             }

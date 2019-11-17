@@ -169,7 +169,7 @@ named!(pub deltachunk<Delta>,
                 do_parse!(peek!(tag!(b"x")) >> d: apply!(zlib_decompress, deltas) >> (d))    // compressed; 'x' part of the zlib stream
             )
         ),
-        |dv: Vec<_>| Delta { fragments: dv.into_iter().flat_map(|x| x).collect() }
+        |dv: Vec<_>| Delta { fragments: dv.into_iter().flatten().collect() }
     )
 );
 
