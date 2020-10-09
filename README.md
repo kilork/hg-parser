@@ -8,7 +8,7 @@ Mercurial repository parser written in the [Rust programming language](https://w
 
 ```toml
 [dependencies]
-hg-parser = "0.3"
+hg-parser = "0.4"
 ```
 
 ### Use case - Analyse revision log and export to ```git fast-import``` format
