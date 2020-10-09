@@ -166,11 +166,6 @@ impl From<hg_parser::ErrorKind> for Error {
 `hg-parser` is based on repository parse code from [mononoke](https://github.com/facebookexperimental/mononoke) project. Which basically based on original Mercurial source code. Version has some simplifications which may not work for you.
 
 */
-
-#[cfg(feature = "jemalloc")]
-#[global_allocator]
-static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
-
 use lru_cache::LruCache;
 use ordered_parallel_iterator::OrderedParallelIterator;
 use rayon::prelude::*;
