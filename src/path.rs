@@ -398,17 +398,23 @@ pub fn simple_fsencode(elements: &[MPathElement]) -> PathBuf {
     let directory_elements = path.rev();
 
     if let Some(basename) = file {
-        let encoded_directory: PathBuf = directory_elements
+        let separator = std::path::MAIN_SEPARATOR as u8;
+        let mut encoded_directory: Vec<u8> = directory_elements
             .map(|elem| {
                 let encoded_element = fnencode(direncode(elem.as_bytes()), false);
-                String::from_utf8(encoded_element).expect("bad utf8")
+                encoded_element
             })
-            .collect();
+            .collect::<Vec<_>>()
+            .join(&separator);
 
-        let encoded_basename = PathBuf::from(
-            String::from_utf8(fnencode(basename.as_bytes(), false)).expect("bad utf8"),
-        );
-        encoded_directory.join(encoded_basename)
+        let encoded_basename = fnencode(basename.as_bytes(), false);
+        if encoded_directory.is_empty() {
+            return PathBuf::from(String::from_utf8(encoded_basename).expect("bad utf8"));
+        }
+        encoded_directory.push(separator);
+        encoded_directory.extend(&encoded_basename);
+
+        PathBuf::from(String::from_utf8(encoded_directory).expect("bad utf8"))
     } else {
         PathBuf::new()
     }
@@ -850,17 +856,23 @@ mod test {
 
     // Tested as in D9967059
     #[test]
-    fn test_hg() {
+    fn test_hg_01() {
         let mut toencode = vec![b'X'; 253];
         toencode.push(b'_');
         let expected = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX__";
         check_simple_fsencode(&toencode, expected);
+    }
 
+    #[test]
+    fn test_hg_02() {
         let mut toencode = vec![b'X'; 254];
         toencode.push(b'_');
         let expected = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:";
         check_simple_fsencode(&toencode, expected);
+    }
 
+    #[test]
+    fn test_hg_03() {
         let x = vec![vec![b'X', b'_']; 85];
         let mut x_flatten: Vec<u8> = x.iter().flat_map(|array| array.iter()).cloned().collect();
         let y = vec![vec![b'Y', b'_']; 86];
@@ -872,11 +884,17 @@ mod test {
         toencode.append(&mut y_flatten);
         let expected = "_z/X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__X__/Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:Y:";
         check_simple_fsencode(&toencode, expected);
+    }
 
+    #[test]
+    fn test_hg_04() {
         let toencode: &[u8] = b"X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X";
         let expected = "X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X:X";
         check_simple_fsencode(toencode, expected);
+    }
 
+    #[test]
+    fn test_hg_05() {
         let toencode: &[u8] = b"A/Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y__Y/ZZZ/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
         let expected = "_a/Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y::Y/_z_z_z/_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x";
         check_simple_fsencode(toencode, expected);
