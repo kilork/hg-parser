@@ -8,7 +8,7 @@ Add dependency to `Cargo.toml`:
 
 ```toml,ignore
 [dependencies]
-hg-parser = "0.4"
+hg-parser = "0.6"
 ```
 
 # Use case - Analyse revision log and export to ```git fast-import``` format
