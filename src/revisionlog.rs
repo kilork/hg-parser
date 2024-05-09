@@ -1,20 +1,23 @@
-use super::cache::{Cachable, Cache};
-use super::parser;
-use super::types::{
-    Chunk, Delta, Features, Fragment, NodeHash, Revision, RevisionLogEntry, RevisionLogHeader,
-    Version,
+use std::{
+    cmp,
+    collections::{BTreeMap, HashMap},
+    path::{Path, PathBuf},
+    sync::Arc,
 };
-use super::{load_to_vec, ErrorKind};
 
-use std::cmp;
-use std::collections::{BTreeMap, HashMap};
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use super::{
+    cache::{Cachable, Cache},
+    load_to_vec, parser,
+    types::{
+        Chunk, Delta, Features, Fragment, NodeHash, Revision, RevisionLogEntry, RevisionLogHeader,
+        Version,
+    },
+    ErrorKind,
+};
 
-#[derive(Debug)]
 /// Mercurial revision log information.
+#[derive(Debug)]
 pub(crate) struct RevisionLog {
-    path: PathBuf,
     header: RevisionLogHeader,
     index: Vec<u8>,
     data: Option<Vec<u8>>,
@@ -46,7 +49,6 @@ impl RevisionLog {
         };
 
         let mut revision_log = RevisionLog {
-            path: path.as_ref().into(),
             header,
             index,
             data,
@@ -95,7 +97,7 @@ impl RevisionLog {
         &self,
         nodeid: &NodeHash,
         cache: &Cache,
-    ) -> Option<Arc<Vec<u8>>> {
+    ) -> Option<Arc<[u8]>> {
         self.info
             .nodes
             .get(&nodeid)
@@ -106,7 +108,7 @@ impl RevisionLog {
         &self,
         entry: &RevisionLogEntry,
         cache: &Cache,
-    ) -> Result<Arc<Vec<u8>>, ErrorKind> {
+    ) -> Result<Arc<[u8]>, ErrorKind> {
         let tgtrev = *self.info.nodes.get(&entry.nodeid).unwrap();
         self.get_revision(tgtrev, cache)
     }
@@ -116,7 +118,7 @@ impl RevisionLog {
         &self,
         revision: Revision,
         cache: &Cache,
-    ) -> Result<Arc<Vec<u8>>, ErrorKind> {
+    ) -> Result<Arc<[u8]>, ErrorKind> {
         if self.is_general_delta() {
             self.construct_general(revision, cache)
         } else {
@@ -155,7 +157,7 @@ impl RevisionLog {
         // baserev itself might also be delta, otherwise its all the deltas from baserev..idx.
         if Some(idx) == entry.baserev {
             if chunkdata.is_empty() {
-                Ok(Chunk::Literal(vec![]))
+                Ok(Chunk::Literal(vec![].into()))
             } else {
                 match parser::literal(chunkdata) {
                     Ok((rest, _)) if !rest.is_empty() => {
@@ -196,7 +198,7 @@ impl RevisionLog {
         }
     }
 
-    fn construct_simple(&self, tgtidx: Revision) -> Result<Arc<Vec<u8>>, ErrorKind> {
+    fn construct_simple(&self, tgtidx: Revision) -> Result<Arc<[u8]>, ErrorKind> {
         assert!(!self.is_general_delta());
 
         let entry = self.get_entry_by_revision(tgtidx).unwrap();
@@ -205,14 +207,14 @@ impl RevisionLog {
 
         // non-general delta - baserev should be literal, then we applying
         // each delta up to idx
-        let mut data = Vec::new();
+        let mut data = None;
         let mut chain = Vec::new();
         for idx in baserev.range_to(tgtidx + 1).rev() {
             let chunk = self.get_chunk(idx);
 
             match chunk? {
                 Chunk::Literal(v) => {
-                    data = v;
+                    data = Some(v);
                     break;
                 }
                 Chunk::Deltas(deltas) => {
@@ -222,18 +224,14 @@ impl RevisionLog {
         }
 
         if chain.is_empty() {
-            return Ok(Arc::new(data));
+            return Ok(data.clone().unwrap_or_else(|| Arc::from(Vec::new())));
         }
 
-        let data = apply_chain(data.as_ref(), chain.into_iter().rev())?;
-        Ok(Arc::new(data))
+        let data = apply_chain(data.as_deref().unwrap_or_default(), chain.into_iter().rev())?;
+        Ok(data.into())
     }
 
-    fn construct_general(
-        &self,
-        tgtidx: Revision,
-        cache: &Cache,
-    ) -> Result<Arc<Vec<u8>>, ErrorKind> {
+    fn construct_general(&self, tgtidx: Revision, cache: &Cache) -> Result<Arc<[u8]>, ErrorKind> {
         assert!(self.is_general_delta());
 
         let mut chunks = Vec::new();
@@ -257,7 +255,7 @@ impl RevisionLog {
                     match chunk {
                         Chunk::Literal(v) => {
                             chunks.pop();
-                            break Arc::new(v);
+                            break v;
                         }
                         _ => {
                             return Err(ErrorKind::RevisionLogFailure(
@@ -282,7 +280,7 @@ impl RevisionLog {
                 None => match chunk {
                     // This is a delta against "-1" revision i.e. empty revision
                     Chunk::Deltas(_) => {
-                        break Arc::new(vec![]);
+                        break vec![].into();
                     }
                     _ => {
                         return Err(ErrorKind::RevisionLogFailure(
@@ -309,7 +307,7 @@ impl RevisionLog {
         let data = apply_chain(data.as_ref(), chain)?;
         Ok(cache.put(
             self.get_entry_by_revision(tgtidx).unwrap().nodeid,
-            Arc::new(data),
+            data.into(),
         ))
     }
 
@@ -444,7 +442,7 @@ pub fn wrap_deltas<I: IntoIterator<Item = Delta>>(
     for delta in deltas {
         let wrapped_delta = FragmentWrapperIterator::new(&delta, content_offset as i64);
         for frag in delta.fragments() {
-            data.extend_from_slice(frag.content.as_slice());
+            data.extend_from_slice(frag.content.as_ref());
             content_offset += frag.content.len();
         }
 
@@ -532,7 +530,7 @@ impl FragmentWrapperIterator {
             let frag = Fragment {
                 start: frag_wrapper.start as usize,
                 end: frag_wrapper.end as usize,
-                content: data[content_start..content_end].to_vec(),
+                content: data[content_start..content_end].into(),
             };
             frags.push(frag);
         }

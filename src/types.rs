@@ -1,20 +1,21 @@
+use std::{
+    fmt::{self, Debug, Display},
+    ops::{Add, Range, Sub},
+    rc::Rc,
+    str::FromStr,
+    sync::Arc,
+};
+
+/// Repository requires flags.
+/// Repositories contain a file (``.hg/requires``) containing a list of
+/// features/capabilities that are *required* for clients to interface
+/// with the repository.
 use super::error::ErrorKind;
 use bitflags::bitflags;
 use chrono::{
     DateTime as ChronoDateTime, FixedOffset, Local, LocalResult, NaiveDateTime, TimeZone,
 };
 use sha1::{Digest, Sha1};
-use std::fmt::Debug;
-use std::fmt::{self, Display};
-use std::ops::Add;
-use std::ops::Range;
-use std::ops::Sub;
-use std::str::FromStr;
-
-/// Repository requires flags.
-/// Repositories contain a file (``.hg/requires``) containing a list of
-/// features/capabilities that are *required* for clients to interface
-/// with the repository.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub(crate) enum RepositoryRequire {
     /// When present, revlogs are version 1 (**RevlogNG**).
@@ -162,6 +163,7 @@ impl From<Range<usize>> for RevisionRange {
 
 /// `Revlog` version number
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u16)]
 pub enum Version {
     Revlog0 = 0,
     RevlogNG = 1,
@@ -169,6 +171,7 @@ pub enum Version {
 
 bitflags! {
     /// `Revlog` features
+    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
     pub struct Features: u16 {
         const INLINE        = 1;
         const GENERAL_DELTA = 1 << 1;
@@ -177,6 +180,7 @@ bitflags! {
 
 bitflags! {
     /// Per-revision flags
+    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
     pub struct IdxFlags: u16 {
         const EXTSTORED     = 1 << 13;
         const CENSORED      = 1 << 15;
@@ -255,7 +259,7 @@ impl FromStr for NodeHash {
 }
 
 /// Entry entry for a revision
-#[derive(Copy, Clone, Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct RevisionLogEntry {
     pub offset: u64,         // offset of content (delta/literal) in datafile (or inlined)
     pub flags: IdxFlags,     // unused?
@@ -289,7 +293,7 @@ impl Delta {
 pub struct Fragment {
     pub start: usize,
     pub end: usize,
-    pub content: Vec<u8>,
+    pub content: Rc<[u8]>,
 }
 
 impl Fragment {
@@ -314,7 +318,7 @@ impl Debug for Fragment {
 #[derive(Debug, Clone)]
 pub enum Chunk {
     /// Literal text of the revision
-    Literal(Vec<u8>),
+    Literal(Arc<[u8]>),
     /// Vector of `Delta`s against a previous version
     Deltas(Delta),
 }

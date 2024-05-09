@@ -166,17 +166,18 @@ impl From<hg_parser::ErrorKind> for Error {
 `hg-parser` is based on repository parse code from [mononoke](https://github.com/facebookexperimental/mononoke) project. Which basically based on original Mercurial source code. Version has some simplifications which may not work for you.
 
 */
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    fs::File,
+    io::{BufRead, BufReader, Read},
+    ops::Deref,
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+};
+
 use lru_cache::LruCache;
 use ordered_parallel_iterator::OrderedParallelIterator;
 use rayon::prelude::*;
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::fs::File;
-use std::io::{BufRead, BufReader, Read};
-use std::ops::Deref;
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 
 mod cache;
 mod changeset;
@@ -205,71 +206,6 @@ pub struct MercurialRepository {
     changelog: RevisionLog,
     manifest: RevisionLog,
     requires: HashSet<RepositoryRequire>,
-}
-
-/// Cached version of `MercurialRepository`.
-pub struct CachedMercurialRepository {
-    repository: MercurialRepository,
-    heads: Mutex<LruCache<Revision, Arc<Manifest>>>,
-    files: Mutex<LruCache<Vec<u8>, Arc<RevisionLog>>>,
-    cache: Cache,
-}
-
-impl From<MercurialRepository> for CachedMercurialRepository {
-    fn from(repository: MercurialRepository) -> Self {
-        Self {
-            repository,
-            heads: Mutex::new(LruCache::new(1 << 4)),
-            files: Mutex::new(LruCache::new(1 << 12)),
-            cache: Cache::new(1 << 13),
-        }
-    }
-}
-
-/// Shares instance of `CachedMercurialRepository` between multiple readers.
-pub struct SharedMercurialRepository {
-    inner: Arc<CachedMercurialRepository>,
-}
-
-impl SharedMercurialRepository {
-    pub fn new(repository: MercurialRepository) -> Self {
-        Self {
-            inner: Arc::new(repository.into()),
-        }
-    }
-}
-
-impl Deref for SharedMercurialRepository {
-    type Target = MercurialRepository;
-
-    #[inline]
-    fn deref(&self) -> &MercurialRepository {
-        &self.inner.repository
-    }
-}
-
-impl SharedMercurialRepository {
-    pub fn par_range_iter(
-        &self,
-        revision_range: RevisionRange,
-    ) -> OrderedParallelIterator<Changeset> {
-        let cached_repository = self.inner.clone();
-        let xform_ctor = move || {
-            let cached_repository = cached_repository.clone();
-            move |x: Revision| {
-                let repository = &cached_repository.repository;
-                repository
-                    .changeset(
-                        &cached_repository.heads,
-                        &cached_repository.files,
-                        &cached_repository.cache,
-                        x,
-                    )
-                    .unwrap()
-            }
-        };
-        OrderedParallelIterator::new(move || revision_range, xform_ctor)
-    }
 }
 
 impl MercurialRepository {
@@ -580,6 +516,71 @@ impl<'a> IntoIterator for &'a MercurialRepository {
 
     fn into_iter(self) -> Self::IntoIter {
         self.range_iter(Revision::from(0).range_to(self.last_rev()))
+    }
+}
+
+/// Cached version of `MercurialRepository`.
+pub struct CachedMercurialRepository {
+    repository: MercurialRepository,
+    heads: Mutex<LruCache<Revision, Arc<Manifest>>>,
+    files: Mutex<LruCache<Vec<u8>, Arc<RevisionLog>>>,
+    cache: Cache,
+}
+
+impl From<MercurialRepository> for CachedMercurialRepository {
+    fn from(repository: MercurialRepository) -> Self {
+        Self {
+            repository,
+            heads: Mutex::new(LruCache::new(1 << 4)),
+            files: Mutex::new(LruCache::new(1 << 12)),
+            cache: Cache::new(1 << 13),
+        }
+    }
+}
+
+/// Shares instance of `CachedMercurialRepository` between multiple readers.
+pub struct SharedMercurialRepository {
+    inner: Arc<CachedMercurialRepository>,
+}
+
+impl SharedMercurialRepository {
+    pub fn new(repository: MercurialRepository) -> Self {
+        Self {
+            inner: Arc::new(repository.into()),
+        }
+    }
+}
+
+impl Deref for SharedMercurialRepository {
+    type Target = MercurialRepository;
+
+    #[inline]
+    fn deref(&self) -> &MercurialRepository {
+        &self.inner.repository
+    }
+}
+
+impl SharedMercurialRepository {
+    pub fn par_range_iter(
+        &self,
+        revision_range: RevisionRange,
+    ) -> OrderedParallelIterator<Changeset> {
+        let cached_repository = self.inner.clone();
+        let xform_ctor = move || {
+            let cached_repository = cached_repository.clone();
+            move |x: Revision| {
+                let repository = &cached_repository.repository;
+                repository
+                    .changeset(
+                        &cached_repository.heads,
+                        &cached_repository.files,
+                        &cached_repository.cache,
+                        x,
+                    )
+                    .unwrap()
+            }
+        };
+        OrderedParallelIterator::new(move || revision_range, xform_ctor)
     }
 }
 

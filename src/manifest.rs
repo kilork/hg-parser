@@ -1,9 +1,11 @@
-use crate::error::ErrorKind;
-use crate::types::*;
-use std::collections::BTreeMap;
-use std::fmt::Debug;
-use std::sync::Arc;
-use std::{fmt, str};
+use std::{
+    collections::BTreeMap,
+    fmt::{self, Debug},
+    str,
+    sync::Arc,
+};
+
+use crate::{error::ErrorKind, types::NodeHash};
 
 pub(crate) struct Manifest {
     pub files: BTreeMap<Vec<u8>, ManifestEntry>,
@@ -50,8 +52,8 @@ impl ManifestEntry {
     }
 }
 
-impl<'a> From<Arc<Vec<u8>>> for Manifest {
-    fn from(value: Arc<Vec<u8>>) -> Self {
+impl<'a> From<Arc<[u8]>> for Manifest {
+    fn from(value: Arc<[u8]>) -> Self {
         let mut files = BTreeMap::new();
         for line in value.split(|&x| x == b'\n') {
             if line.is_empty() {

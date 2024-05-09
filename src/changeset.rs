@@ -1,10 +1,13 @@
-use crate::error::ErrorKind;
-use crate::manifest::ManifestEntry;
-use crate::types::{DateTime, NodeHash, Revision, RevisionLogEntry};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::{fmt, str};
+
+use crate::{
+    error::ErrorKind,
+    manifest::ManifestEntry,
+    types::{DateTime, NodeHash, Revision, RevisionLogEntry},
+};
 
 /// Changeset's header.
 pub struct ChangesetHeader {
@@ -182,7 +185,7 @@ pub struct ChangesetFile {
     /// Path.
     pub path: Vec<u8>,
     /// Data of file, `None` - file was deleted, otherwise it was added or modified.
-    pub data: Option<Arc<Vec<u8>>>,
+    pub data: Option<Arc<[u8]>>,
     /// Meta information, `None` - file was deleted, otherwise it was added or modified.
     pub manifest_entry: Option<ManifestEntry>,
 }
