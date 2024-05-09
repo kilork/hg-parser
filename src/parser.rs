@@ -85,7 +85,7 @@ pub fn indexng(input: &[u8]) -> IResult<&[u8], RevisionLogEntry> {
     Ok((
         input,
         RevisionLogEntry {
-            offset: offset,
+            offset,
             flags: IdxFlags::from_bits(flags).expect("bad rev idx flags"),
             compressed_len: compressed_length,
             len: Some(uncompressed_length),
@@ -155,7 +155,7 @@ fn deltas(input: &[u8]) -> IResult<&[u8], Vec<Fragment>> {
     many0(delta)(input)
 }
 
-fn compressed_deltas<'c>(input: &[u8]) -> IResult<&[u8], Vec<Fragment>> {
+fn compressed_deltas(input: &[u8]) -> IResult<&[u8], Vec<Fragment>> {
     let (input, chunk) = zlib_decompress(input)?;
 
     let Ok((_remain, d)) = deltas(&chunk) else {
@@ -208,5 +208,5 @@ pub fn literal(input: &[u8]) -> IResult<&[u8], Arc<[u8]>> {
         // compressed; 'x' part of the zlib stream
         peek(tag(b"x")).and(compressed_remains),
     ))(input)?;
-    Ok((input, d.into()))
+    Ok((input, d))
 }

@@ -43,13 +43,13 @@ impl Debug for ChangesetHeader {
                 .iter()
                 .map(|(key, value)| format!(
                     "{}:{}",
-                    str::from_utf8(&key).expect("bad extra key utf8"),
-                    str::from_utf8(&value).unwrap_or("bad extra value utf8")
+                    str::from_utf8(key).expect("bad extra key utf8"),
+                    str::from_utf8(value).unwrap_or("bad extra value utf8")
                 ))
                 .collect::<Vec<_>>()
                 .join(","),
             self.files.iter()
-                .map(|key| str::from_utf8(&key).unwrap().to_string())
+                .map(|key| str::from_utf8(key).unwrap().to_string())
                 .collect::<Vec<_>>()
                 .join("\n"),
             str::from_utf8(&self.comment).expect("bad comment utf8"),
@@ -85,7 +85,7 @@ impl ChangesetHeader {
                 parts.next(),
             ) {
                 let mut files = Vec::new();
-                while let Some(file) = lines.next() {
+                for file in lines.by_ref() {
                     if file.is_empty() {
                         break;
                     }

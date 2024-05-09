@@ -35,7 +35,7 @@ fn export_repo<P: AsRef<Path>>(path: P) -> Result<(), Error> {
             }
         }
 
-        let mut branch: Vec<_> = branch.unwrap_or_else(|| b"master").into();
+        let mut branch: Vec<_> = branch.unwrap_or(b"master").into();
         for b in branch.iter_mut() {
             if *b == b' ' {
                 *b = b'-';
@@ -50,9 +50,9 @@ fn export_repo<P: AsRef<Path>>(path: P) -> Result<(), Error> {
         let tz = format!("{:+03}{:02}", -timezone / 3600, ((-timezone % 3600) / 60));
 
         write!(writer, "reset refs/heads/")?;
-        writer.write_all(&mut branch)?;
+        writer.write_all(&branch)?;
         write!(writer, "\ncommit refs/heads/")?;
-        writer.write_all(&mut branch)?;
+        writer.write_all(&branch)?;
         writeln!(writer, "\nmark :{}", mark(revision))?;
 
         writeln!(writer, "author {} {} {}", user, time, tz)?;
@@ -71,11 +71,11 @@ fn export_repo<P: AsRef<Path>>(path: P) -> Result<(), Error> {
             _ => (),
         }
 
-        for mut file in changeset.files {
+        for file in changeset.files {
             match (file.data, file.manifest_entry) {
                 (None, None) => {
                     write!(writer, "D ")?;
-                    writer.write_all(&mut file.path)?;
+                    writer.write_all(&file.path)?;
                     writeln!(writer)?;
                 }
                 (Some(data), Some(manifest_entry)) => {
@@ -89,10 +89,10 @@ fn export_repo<P: AsRef<Path>>(path: P) -> Result<(), Error> {
                             | ManifestEntryDetails::File(FileType::Regular) => "100644",
                         }
                     )?;
-                    writer.write_all(&mut file.path)?;
+                    writer.write_all(&file.path)?;
                     let data = file_content(&data);
                     writeln!(writer, "\ndata {}", data.len())?;
-                    writer.write_all(&data[..])?;
+                    writer.write_all(data)?;
                 }
                 _ => panic!("Wrong file data!"),
             }
@@ -100,11 +100,11 @@ fn export_repo<P: AsRef<Path>>(path: P) -> Result<(), Error> {
 
         if closed {
             write!(writer, "reset refs/tags/archive/")?;
-            writer.write_all(&mut branch)?;
+            writer.write_all(&branch)?;
             writeln!(writer, "\nfrom :{}\n", mark(revision))?;
 
             write!(writer, "reset refs/heads/")?;
-            writer.write_all(&mut branch)?;
+            writer.write_all(&branch)?;
             writeln!(writer, "\nfrom 0000000000000000000000000000000000000000\n")?;
         }
     }

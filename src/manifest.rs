@@ -18,7 +18,7 @@ impl Debug for Manifest {
             "Manifest(\nfiles:\n{}\n)",
             self.files
                 .iter()
-                .map(|(key, value)| format!("{}: {:?}", str::from_utf8(&key).unwrap(), value))
+                .map(|(key, value)| format!("{}: {:?}", str::from_utf8(key).unwrap(), value))
                 .collect::<Vec<_>>()
                 .join("\n")
         )
@@ -52,7 +52,7 @@ impl ManifestEntry {
     }
 }
 
-impl<'a> From<Arc<[u8]>> for Manifest {
+impl From<Arc<[u8]>> for Manifest {
     fn from(value: Arc<[u8]>) -> Self {
         let mut files = BTreeMap::new();
         for line in value.split(|&x| x == b'\n') {
@@ -63,7 +63,7 @@ impl<'a> From<Arc<[u8]>> for Manifest {
             if let (Some(file), Some(rest)) = (parts.next(), parts.next()) {
                 files.insert(file.into(), ManifestEntry::parse(rest).unwrap());
             } else {
-                panic!();
+                panic!("wrong manifest line");
             }
         }
         Manifest { files }

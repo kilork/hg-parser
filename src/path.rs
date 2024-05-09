@@ -179,7 +179,7 @@ impl MPath {
     /// `foo` is a prefix of `foo/bar`, but not of `foo1`.
     #[inline]
     pub fn is_prefix_of<'a, E: IntoIterator<Item = &'a MPathElement>>(&self, other: E) -> bool {
-        self.common_components(other.into_iter()) == self.num_components()
+        self.common_components(other) == self.num_components()
     }
 
     /// The final component of this path.
@@ -482,7 +482,7 @@ fn fnencode<E: AsRef<[u8]>>(elem: E, forfncache: bool) -> Vec<u8> {
                     UpperEncoding::ToUpper => upper_to_upper(&mut ret, e),
                 },
                 b'_' => match encode_underscore {
-                    UnderscoreEncoding::EncodeTo(slice) => ret.extend_from_slice(&slice),
+                    UnderscoreEncoding::EncodeTo(slice) => ret.extend_from_slice(slice),
                 },
                 _ => ret.push(e),
             }
@@ -548,10 +548,7 @@ fn auxencode<E: AsRef<[u8]>>(elem: E, dotencode: bool) -> Vec<u8> {
         } else {
             // if base portion of name is a windows reserved name,
             // then hex encode 3rd char
-            let pos = elem
-                .iter()
-                .position(|c| *c == b'.')
-                .unwrap_or_else(|| elem.len());
+            let pos = elem.iter().position(|c| *c == b'.').unwrap_or(elem.len());
             let prefix_len = ::std::cmp::min(3, pos);
             match &elem[..prefix_len] {
                 b"aux" | b"con" | b"prn" | b"nul" if pos == 3 => {
@@ -594,7 +591,7 @@ fn get_extension(basename: &[u8]) -> &[u8] {
 }
 
 fn hashed_file(dirs: &[Vec<u8>], file: &[u8]) -> NodeHash {
-    let mut elements: Vec<_> = dirs.iter().map(|elem| direncode(&elem)).collect();
+    let mut elements: Vec<_> = dirs.iter().map(|elem| direncode(elem)).collect();
     elements.push(Vec::from(file));
 
     NodeHash::from_slice(elements.join(&b'/').as_ref())
@@ -611,7 +608,7 @@ fn hashencode(dirs: Vec<Vec<u8>>, file: &[u8], dotencode: bool) -> PathBuf {
 
     let mut parts = dirs
         .iter()
-        .map(|elem| direncode(&elem))
+        .map(|elem| direncode(elem))
         .map(|elem| lowerencode(&elem))
         .map(|elem| auxencode(elem, dotencode));
 

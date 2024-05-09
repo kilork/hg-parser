@@ -5,7 +5,7 @@ pub enum ErrorKind {
     Parser,
     /// Cannot convert from Utf-8.
     #[error("cannot convert from Utf-8 {0}")]
-    FromUtf8(std::str::Utf8Error),
+    FromUtf8(#[from] std::str::Utf8Error),
     /// IO error.
     #[error("IO error {0}")]
     IO(#[from] std::io::Error),
@@ -35,11 +35,5 @@ impl From<nom::Err<nom::error::Error<&[u8]>>> for ErrorKind {
 impl From<chrono::format::ParseError> for ErrorKind {
     fn from(value: chrono::format::ParseError) -> Self {
         ErrorKind::InvalidDateTime(format!("{:?}", value))
-    }
-}
-
-impl From<std::str::Utf8Error> for ErrorKind {
-    fn from(value: std::str::Utf8Error) -> Self {
-        ErrorKind::FromUtf8(value)
     }
 }

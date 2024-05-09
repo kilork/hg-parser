@@ -10,7 +10,8 @@ keywords = ["hg", "mercurial", "parser"]
 license = "GPL-2.0-or-later"
 name = "hg-parser"
 repository = "https://github.com/kilork/hg-parser"
-version = "0.7.0"
+version = "0.8.0"
+rust-version = "1.78"
 
 [dependencies]
 bitflags = {version = "2.5", default-features = false}
@@ -20,7 +21,7 @@ flate2 = "1.0"
 lazy_static = {version = "1.4", default-features = false}
 lru-cache = {version = "0.1", default-features = false}
 nom = {version = "7.1", default-features = false, features = ["alloc"]}
-ordered-parallel-iterator = {version = "0.1", default-features = false}
+ordered-parallel-iterator = {version = "0.2", default-features = false}
 rayon = {version = "1.4", default-features = false}
 sha-1 = {version = "0.10", default-features = false}
 thiserror = "1"

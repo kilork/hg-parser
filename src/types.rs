@@ -200,7 +200,7 @@ pub struct NodeHash([u8; 20]);
 const HEX_CHARS: &[u8] = b"0123456789abcdef";
 
 impl NodeHash {
-    pub fn to_hex(&self) -> String {
+    pub fn to_hex(self) -> String {
         let mut v = Vec::with_capacity(40);
         for &byte in &self.0 {
             v.push(HEX_CHARS[(byte >> 4) as usize]);

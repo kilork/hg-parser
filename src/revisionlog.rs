@@ -89,7 +89,7 @@ impl RevisionLog {
     pub(crate) fn get_entry_by_nodeid(&self, nodeid: &NodeHash) -> Option<&RevisionLogEntry> {
         self.info
             .nodes
-            .get(&nodeid)
+            .get(nodeid)
             .and_then(|revision| self.info.entries.get(revision))
     }
 
@@ -100,7 +100,7 @@ impl RevisionLog {
     ) -> Option<Arc<[u8]>> {
         self.info
             .nodes
-            .get(&nodeid)
+            .get(nodeid)
             .and_then(|&revision| self.get_revision(revision, cache).ok())
     }
 
@@ -194,7 +194,7 @@ impl RevisionLog {
         if self.is_inline {
             self.info.offsets.get(&idx).cloned()
         } else {
-            Some(idx.0 as usize * self.entry_size(None) as usize)
+            Some(idx.0 as usize * self.entry_size(None))
         }
     }
 
@@ -408,14 +408,17 @@ pub fn apply(text: &[u8], delta: &Delta) -> Result<Vec<u8>, ErrorKind> {
         }
         off = frag.end;
     }
-    if off < text.len() {
-        chunks.push(&text[off..text.len()]);
-    } else if off > text.len() {
-        return Err(ErrorKind::RevisionLogFailure(format!(
-            "Invalid delta, fragment is referencing out of bounds content: {} > {}",
-            off,
-            text.len()
-        )));
+
+    match off.cmp(&text.len()) {
+        cmp::Ordering::Less => chunks.push(&text[off..text.len()]),
+        cmp::Ordering::Equal => (),
+        cmp::Ordering::Greater => {
+            return Err(ErrorKind::RevisionLogFailure(format!(
+                "Invalid delta, fragment is referencing out of bounds content: {} > {}",
+                off,
+                text.len()
+            )))
+        }
     }
 
     let size = chunks.iter().map(|c| c.len()).sum::<usize>();
@@ -479,7 +482,7 @@ impl FragmentWrapperIterator {
                 start: frag.start as i64,
                 end: frag.end as i64,
                 len: frag.content_length() as i64,
-                content_start: offset as i64,
+                content_start: offset,
             };
             offset += frag.content_length() as i64;
             frag_wrappers.push(frag_wrapper);
@@ -525,7 +528,7 @@ impl FragmentWrapperIterator {
         for frag_wrapper in self.frags.as_slice() {
             let content_start = frag_wrapper.content_start as usize;
             let content_len = frag_wrapper.len as usize;
-            let content_end = (content_start + content_len) as usize;
+            let content_end = content_start + content_len;
 
             let frag = Fragment {
                 start: frag_wrapper.start as usize,
