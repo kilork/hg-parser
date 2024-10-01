@@ -13,14 +13,16 @@ hg-parser = "0.8"
 
 ### Use case - Analyse revision log and export to ```git fast-import``` format
 
-```rust#ignore
-use hg_parser::{file_content, FileType, ManifestEntryDetails, MercurialRepository, Revision};
+```rust, no_run
+use std::{
+    env::args,
+    io::Write,
+    path::{Path, PathBuf},
+    string::ParseError,
+    time::Instant,
+};
 
-use std::env::args;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::string::ParseError;
-use std::time::Instant;
+use hg_parser::{file_content, FileType, ManifestEntryDetails, MercurialRepository, Revision};
 
 fn main() -> Result<(), Error> {
     let path: PathBuf = args().nth(1).expect("path not provided").parse()?;

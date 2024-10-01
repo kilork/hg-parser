@@ -22,15 +22,22 @@ mod revisionlog;
 mod types;
 
 use cache::{Cachable, Cache};
-pub use changeset::*;
-pub use error::ErrorKind;
 use manifest::Manifest;
 use path::{fncache_fsencode, simple_fsencode, MPath, MPathElement};
 use revisionlog::RevisionLog;
 use types::{MercurialTag, NodeHash, RepositoryRequire};
 
+pub use changeset::*;
+pub use error::ErrorKind;
 pub use manifest::{FileType, ManifestEntry, ManifestEntryDetails};
 pub use types::{Revision, RevisionRange};
+
+/// Options for mercurial repository.
+#[derive(Default)]
+pub struct MercurialRepositoryOptions {
+    /// Threat unknown requirements as warnings.
+    pub ignore_unknown_requirements: bool,
+}
 
 #[derive(Debug)]
 /// Mercurial repository. Top-level structure for access to change sets and tags.
@@ -44,9 +51,17 @@ pub struct MercurialRepository {
 impl MercurialRepository {
     /// Opens `MercurialRepository` at `root_path`.
     pub fn open<P: AsRef<Path>>(root_path: P) -> Result<MercurialRepository, ErrorKind> {
+        Self::open_with_options(root_path, Default::default())
+    }
+
+    /// Opens `MercurialRepository` at `root_path` with options.
+    pub fn open_with_options<P: AsRef<Path>>(
+        root_path: P,
+        options: MercurialRepositoryOptions,
+    ) -> Result<MercurialRepository, ErrorKind> {
         let base = root_path.as_ref().join(".hg");
 
-        let requires = MercurialRepository::load_requires(&base)?;
+        let requires = MercurialRepository::load_requires(&base, &options)?;
 
         let store = base.join("store");
 
@@ -142,13 +157,23 @@ impl MercurialRepository {
 
     fn load_requires<P: AsRef<Path>>(
         path: P,
-    ) -> Result<HashSet<RepositoryRequire>, std::io::Error> {
+        options: &MercurialRepositoryOptions,
+    ) -> Result<HashSet<RepositoryRequire>, ErrorKind> {
         let requires_path = path.as_ref().join("requires");
         let file = File::open(requires_path)?;
-        Ok(BufReader::new(file)
-            .lines()
-            .map(|x| x.unwrap().parse().expect("could not parse requirement"))
-            .collect())
+        let lines = BufReader::new(file).lines().map_while(Result::ok);
+        if options.ignore_unknown_requirements {
+            lines
+                .map(|x| match x.parse() {
+                    Err(ErrorKind::UnknownRequirement(r)) => Ok(r),
+                    other => other,
+                })
+                .collect()
+        } else {
+            Ok(lines
+                .map(|x| x.parse().expect("could not parse requirement"))
+                .collect())
+        }
     }
 
     fn fsencode_path(&self, elements: &[MPathElement]) -> PathBuf {

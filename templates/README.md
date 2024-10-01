@@ -13,7 +13,7 @@ hg-parser = "0.8"
 
 ### Use case - Analyse revision log and export to ```git fast-import``` format
 
-{{ codeblock "rust#ignore" ( read_to_str "examples/git-fast-import.rs" ) }}
+{{ codeblock "rust, no_run" ( read_to_str "examples/git-fast-import.rs" ) }}
 
 ## Implementation details
 

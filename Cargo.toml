@@ -4,7 +4,7 @@ description = """
 Mercurial repository changelog parser. It allows to get any revision
 with creation date, user, parents, branch and files.
 """
-edition = "2018"
+edition = "2021"
 homepage = "https://github.com/kilork/hg-parser"
 keywords = ["hg", "mercurial", "parser"]
 license = "GPL-2.0-or-later"
@@ -14,14 +14,14 @@ version = "0.8.0"
 rust-version = "1.78"
 
 [dependencies]
-bitflags = {version = "2.5", default-features = false}
-byteorder = {version = "1.3", default-features = false}
-chrono = {version = "0.4", features = ["clock"], default-features = false}
+bitflags = { version = "2.5", default-features = false }
+byteorder = { version = "1.3", default-features = false }
+chrono = { version = "0.4", features = ["clock"], default-features = false }
 flate2 = "1.0"
-lazy_static = {version = "1.4", default-features = false}
-lru-cache = {version = "0.1", default-features = false}
-nom = {version = "7.1", default-features = false, features = ["alloc"]}
-ordered-parallel-iterator = {version = "0.2", default-features = false}
-rayon = {version = "1.4", default-features = false}
-sha-1 = {version = "0.10", default-features = false}
+lazy_static = { version = "1.4", default-features = false }
+lru-cache = { version = "0.1", default-features = false }
+nom = { version = "7.1", default-features = false, features = ["alloc"] }
+ordered-parallel-iterator = { version = "0.2", default-features = false }
+rayon = { version = "1.4", default-features = false }
+sha-1 = { version = "0.10", default-features = false }
 thiserror = "1"

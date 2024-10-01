@@ -1,23 +1,24 @@
 use std::{
-    fmt::{self, Debug, Display},
+    fmt::{self, Display},
     ops::{Add, Range, Sub},
     rc::Rc,
     str::FromStr,
     sync::Arc,
 };
 
-/// Repository requires flags.
-/// Repositories contain a file (``.hg/requires``) containing a list of
-/// features/capabilities that are *required* for clients to interface
-/// with the repository.
 use super::error::ErrorKind;
 use bitflags::bitflags;
 use chrono::{
     DateTime as ChronoDateTime, FixedOffset, Local, LocalResult, NaiveDateTime, TimeZone,
 };
 use sha1::{Digest, Sha1};
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub(crate) enum RepositoryRequire {
+
+/// Repository requires flags.
+/// Repositories contain a file (``.hg/requires``) containing a list of
+/// features/capabilities that are *required* for clients to interface
+/// with the repository.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub enum RepositoryRequire {
     /// When present, revlogs are version 1 (**RevlogNG**).
     Revlogv1,
     /// The **store** repository layout is used.
@@ -45,6 +46,10 @@ pub(crate) enum RepositoryRequire {
     TreeManifest,
     /// The working directory is sparse (only contains a subset of files).
     ExpSparse,
+    /// Safe behaviour for all shares that access a repository.
+    ShareSafe,
+    /// Unknown requirement.
+    Unknown(String),
 }
 
 impl FromStr for RepositoryRequire {
@@ -64,7 +69,29 @@ impl FromStr for RepositoryRequire {
             "manifestv2" => Ok(Manifestv2),
             "treemanifest" => Ok(TreeManifest),
             "exp-sparse" => Ok(ExpSparse),
-            other => Err(ErrorKind::UnknownRequirement(other.into())),
+            "share-safe" => Ok(ShareSafe),
+            other => Err(ErrorKind::UnknownRequirement(Self::Unknown(other.into()))),
+        }
+    }
+}
+
+impl std::fmt::Display for RepositoryRequire {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use RepositoryRequire::*;
+        match self {
+            Revlogv1 => "revlogv1".fmt(f),
+            Store => "store".fmt(f),
+            FnCache => "fncache".fmt(f),
+            Shared => "shared".fmt(f),
+            RelShared => "relshared".fmt(f),
+            DotEncode => "dotencode".fmt(f),
+            ParentDelta => "parentdelta".fmt(f),
+            GeneralDelta => "generaldelta".fmt(f),
+            Manifestv2 => "manifestv2".fmt(f),
+            TreeManifest => "treemanifest".fmt(f),
+            ExpSparse => "exp-sparse".fmt(f),
+            ShareSafe => "share-safe".fmt(f),
+            Unknown(s) => s.fmt(f),
         }
     }
 }
@@ -81,7 +108,7 @@ impl Revision {
 
     /// Return an open ended iterator from index.
     pub fn range(self) -> RevisionRange {
-        RevisionRange(self.0, std::u32::MAX)
+        RevisionRange(self.0, u32::MAX)
     }
 }
 
@@ -221,13 +248,13 @@ impl AsRef<[u8]> for NodeHash {
     }
 }
 
-impl Display for NodeHash {
+impl std::fmt::Display for NodeHash {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         Display::fmt(&self.to_hex(), fmt)
     }
 }
 
-impl Debug for NodeHash {
+impl std::fmt::Debug for NodeHash {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "NodeHash({})", self)
     }
@@ -303,7 +330,7 @@ impl Fragment {
     }
 }
 
-impl Debug for Fragment {
+impl std::fmt::Debug for Fragment {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(
             fmt,
