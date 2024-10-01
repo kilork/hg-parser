@@ -1,3 +1,5 @@
+use crate::types::RepositoryRequire;
+
 #[derive(Debug, thiserror::Error)]
 pub enum ErrorKind {
     /// Parser failed.
@@ -20,7 +22,7 @@ pub enum ErrorKind {
     InvalidDateTime(String),
     /// Requirement in ``.hg/requires`` is not supported.
     #[error("unknown requirement {0}")]
-    UnknownRequirement(String),
+    UnknownRequirement(RepositoryRequire),
     /// Manifest issue.
     #[error("manifest issue {0}")]
     Manifest(String),
